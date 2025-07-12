@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
       const mesasDisponiveis = LIMITE_MESAS - totalMesasReservadas
       const podeReservar = quantidadeMesas <= mesasDisponiveis
 
-      // Gerar lista de mesas disponíveis (1-94, excluindo ocupadas)
+      // Gerar lista de mesas disponíveis (1-98, excluindo ocupadas)
       const todasMesas = Array.from({ length: 98 }, (_, i) => i + 1)
       const mesasLivres = todasMesas.filter(mesa => !mesasOcupadas.includes(mesa))
 
@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
         total_mesas_livres: mesasLivres.length,
         disponibilidade_por_horario: disponibilidadePorHorario,
         horarios_disponiveis: [
-          '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00'
+          '18:00', '18:30', '19:00', '19:30', '20:00'
         ]
       }
 
