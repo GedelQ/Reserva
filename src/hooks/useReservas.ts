@@ -7,70 +7,86 @@ export const useReservas = (dataFiltro?: string) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadReservas = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const data = await fetchReservas(dataFiltro ? { data_reserva: dataFiltro } : undefined)
-      setReservas(data)
-      return data // Retorna os dados buscados
-    } catch (err) {
-      console.error('Erro ao carregar reservas:', err)
-      setError(err instanceof Error ? err.message : 'Erro desconhecido')
-      return [] // Retorna array vazio em caso de erro
-    } finally {
-      setLoading(false)
-    }
-  }, [dataFiltro])
-
   useEffect(() => {
-    loadReservas()
+    const fetchAndSubscribe = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const initialData = await fetchReservas(dataFiltro ? { data_reserva: dataFiltro } : undefined);
+        setReservas(initialData);
+      } catch (err) {
+        console.error('Erro ao carregar reservas iniciais:', err);
+        setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      } finally {
+        setLoading(false);
+      }
 
-    const channel = supabase
-      .channel('public:reservas')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas' }, payload => {
-        setReservas(prevReservas => {
-        const newReservas = (() => {
-          switch (payload.eventType) {
-            case 'INSERT':
-              return [...prevReservas, payload.new as Reserva];
-            case 'UPDATE':
-              // Se o status for 'cancelada', remove a reserva
-              if ((payload.new as Reserva).status === 'cancelada') {
-                return prevReservas.filter(reserva => reserva.id !== (payload.new as Reserva).id);
-              } else {
-                // Caso contrário, atualiza a reserva existente
-                return prevReservas.map(reserva =>
-                  reserva.id === (payload.new as Reserva).id ? (payload.new as Reserva) : reserva
-                );
+      const channel = supabase
+        .channel('public:reservas')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas' }, payload => {
+          setReservas(prevReservas => {
+            const newReservas = (() => {
+              switch (payload.eventType) {
+                case 'INSERT':
+                  const newReserva = payload.new as Reserva;
+                  if (!prevReservas.some(r => r.id === newReserva.id)) {
+                    return [...prevReservas, newReserva];
+                  }
+                  return prevReservas;
+                case 'UPDATE':
+                  if ((payload.new as Reserva).status === 'cancelada') {
+                    return prevReservas.filter(reserva => reserva.id !== (payload.new as Reserva).id);
+                  } else {
+                    return prevReservas.map(reserva =>
+                      reserva.id === (payload.new as Reserva).id ? (payload.new as Reserva) : reserva
+                    );
+                  }
+                case 'DELETE':
+                  return prevReservas.filter(reserva => reserva.id !== (payload.old as Reserva).id);
+                default:
+                  return prevReservas;
               }
-            case 'DELETE': // Este caso só ocorreria se a exclusão fosse física
-              return prevReservas.filter(reserva => reserva.id !== (payload.old as Reserva).id);
-            default:
-              return prevReservas;
-          }
-        })();
-        console.log('Realtime update - new reservas count:', newReservas.length, 'Event:', payload.eventType);
-        return newReservas;
-      });
-      })
-      .subscribe()
+            })();
+            return newReservas;
+          });
+        })
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [dataFiltro, loadReservas])
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    };
+
+    fetchAndSubscribe();
+
+  }, [dataFiltro]);
 
   const criarReserva = useCallback(async (reservaData: Omit<Reserva, 'id' | 'created_at'>) => {
+    const tempId = `temp-${Date.now()}`;
+    const optimisticReserva: Reserva = { 
+      ...reservaData, 
+      id: tempId, 
+      created_at: new Date().toISOString(), 
+      status: 'ativa',
+      isOptimistic: true // Marca como otimista
+    };
+
+    // Adiciona otimisticamente a reserva à UI
+    setReservas(prevReservas => [...prevReservas, optimisticReserva]);
+
     try {
-      const novaReserva = await createReserva(reservaData)
-      // O Realtime vai disparar o loadReservas, não precisamos fazer aqui
-      return novaReserva
+      const novaReserva = await createReserva(reservaData);
+      // Remove a reserva otimista após a criação bem-sucedida no DB.
+      // O Realtime se encarregará de adicionar a reserva real.
+      setReservas(prevReservas => prevReservas.filter(r => r.id !== optimisticReserva.id));
+      return novaReserva;
     } catch (error) {
-      console.error('Erro ao criar reserva:', error)
-      throw error
+      console.error('Erro ao criar reserva:', error);
+      // Em caso de erro, remove a reserva otimista
+      setReservas(prevReservas => prevReservas.filter(r => r.id !== tempId));
+      throw error;
     }
-  }, [])
+  }, []);
 
   const atualizarReserva = useCallback(async (id: string, reservaData: Partial<Reserva>) => {
     try {
@@ -174,7 +190,6 @@ export const useReservas = (dataFiltro?: string) => {
     reservas,
     loading,
     error,
-    refetch: loadReservas,
     criarReserva,
     atualizarReserva,
     cancelarReserva,

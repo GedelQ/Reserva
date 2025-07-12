@@ -16,6 +16,7 @@ export interface Reserva {
   horario_reserva: string
   observacoes: string
   status: 'ativa' | 'cancelada' | 'finalizada'
+  isOptimistic?: boolean
 }
 
 export interface Mesa {
