@@ -36,7 +36,7 @@ const MapaMesas: React.FC<MapaMesasProps> = ({
       const reserva = reservas.find(r => r.id_mesa === mesa.id)
       let status: 'disponivel' | 'ocupada' | 'selecionada' = 'disponivel'
       
-      if (reserva) {
+      if (reserva && reserva.status === 'ativa') {
         status = 'ocupada'
       }
       

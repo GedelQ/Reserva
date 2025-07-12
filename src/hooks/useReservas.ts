@@ -30,19 +30,29 @@ export const useReservas = (dataFiltro?: string) => {
       .channel('public:reservas')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas' }, payload => {
         setReservas(prevReservas => {
+        const newReservas = (() => {
           switch (payload.eventType) {
             case 'INSERT':
               return [...prevReservas, payload.new as Reserva];
             case 'UPDATE':
-              return prevReservas.map(reserva =>
-                reserva.id === (payload.new as Reserva).id ? (payload.new as Reserva) : reserva
-              );
-            case 'DELETE':
+              // Se o status for 'cancelada', remove a reserva
+              if ((payload.new as Reserva).status === 'cancelada') {
+                return prevReservas.filter(reserva => reserva.id !== (payload.new as Reserva).id);
+              } else {
+                // Caso contrário, atualiza a reserva existente
+                return prevReservas.map(reserva =>
+                  reserva.id === (payload.new as Reserva).id ? (payload.new as Reserva) : reserva
+                );
+              }
+            case 'DELETE': // Este caso só ocorreria se a exclusão fosse física
               return prevReservas.filter(reserva => reserva.id !== (payload.old as Reserva).id);
             default:
               return prevReservas;
           }
-        });
+        })();
+        console.log('Realtime update - new reservas count:', newReservas.length, 'Event:', payload.eventType);
+        return newReservas;
+      });
       })
       .subscribe()
 
@@ -79,7 +89,11 @@ export const useReservas = (dataFiltro?: string) => {
   const cancelarReserva = useCallback(async (id: string) => {
     // Otimisticamente remove a reserva da UI
     const previousReservas = reservas
-    setReservas(currentReservas => currentReservas.filter(reserva => reserva.id !== id))
+    setReservas(currentReservas => {
+      const updatedReservas = currentReservas.filter(reserva => reserva.id !== id);
+      console.log('Optimistic cancel - new reservas count:', updatedReservas.length);
+      return updatedReservas;
+    });
 
     try {
       const reservaCancelada = await deleteReserva(id)
@@ -131,7 +145,11 @@ export const useReservas = (dataFiltro?: string) => {
       const idsToCancel = new Set(reservasCliente.map(reserva => reserva.id));
 
       // Optimistically remove the reservations from the UI
-      setReservas(currentReservas => currentReservas.filter(reserva => !idsToCancel.has(reserva.id)));
+      setReservas(currentReservas => {
+        const updatedReservas = currentReservas.filter(reserva => !idsToCancel.has(reserva.id));
+        console.log('Optimistic multi-cancel - new reservas count:', updatedReservas.length);
+        return updatedReservas;
+      });
 
       const promises = reservasCliente.map(reserva => deleteReserva(reserva.id));
       const cancelledReservas = await Promise.all(promises);
