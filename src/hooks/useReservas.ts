@@ -29,8 +29,20 @@ export const useReservas = (dataFiltro?: string) => {
     const channel = supabase
       .channel('public:reservas')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas' }, payload => {
-        // Força o recarregamento dos dados em qualquer evento Realtime
-        loadReservas()
+        setReservas(prevReservas => {
+          switch (payload.eventType) {
+            case 'INSERT':
+              return [...prevReservas, payload.new as Reserva];
+            case 'UPDATE':
+              return prevReservas.map(reserva =>
+                reserva.id === (payload.new as Reserva).id ? (payload.new as Reserva) : reserva
+              );
+            case 'DELETE':
+              return prevReservas.filter(reserva => reserva.id !== (payload.old as Reserva).id);
+            default:
+              return prevReservas;
+          }
+        });
       })
       .subscribe()
 
@@ -65,18 +77,25 @@ export const useReservas = (dataFiltro?: string) => {
   }, [])
 
   const cancelarReserva = useCallback(async (id: string) => {
+    // Otimisticamente remove a reserva da UI
+    const previousReservas = reservas
+    setReservas(currentReservas => currentReservas.filter(reserva => reserva.id !== id))
+
     try {
       const reservaCancelada = await deleteReserva(id)
-      // O Realtime vai disparar o loadReservas, não precisamos fazer aqui
+      // O Realtime ainda vai disparar o loadReservas para garantir consistência,
+      // mas a UI já estará atualizada otimisticamente.
       if (reservaCancelada) {
         await processWebhook(WEBHOOK_EVENTS.RESERVA_CANCELADA, reservaCancelada)
       }
       return reservaCancelada
     } catch (error) {
       console.error('Erro ao cancelar reserva:', error)
+      // Em caso de erro, reverte a UI para o estado anterior
+      setReservas(previousReservas)
       throw error
     }
-  }, [])
+  }, [reservas])
 
   const buscarReservasDoCliente = useCallback(async (nomeCliente: string, telefoneCliente: string, dataReserva: string) => {
     try {
@@ -105,16 +124,33 @@ export const useReservas = (dataFiltro?: string) => {
   }, [buscarReservasDoCliente])
 
   const cancelarReservasDoCliente = useCallback(async (nomeCliente: string, telefoneCliente: string, dataReserva: string) => {
+    const previousReservas = reservas; // Store current state for rollback
+
     try {
-      const reservasCliente = await buscarReservasDoCliente(nomeCliente, telefoneCliente, dataReserva)
-      const promises = reservasCliente.map(reserva => deleteReserva(reserva.id))
-      await Promise.all(promises)
-      // O Realtime vai disparar o loadReservas, não precisamos fazer aqui
+      const reservasCliente = await buscarReservasDoCliente(nomeCliente, telefoneCliente, dataReserva);
+      const idsToCancel = new Set(reservasCliente.map(reserva => reserva.id));
+
+      // Optimistically remove the reservations from the UI
+      setReservas(currentReservas => currentReservas.filter(reserva => !idsToCancel.has(reserva.id)));
+
+      const promises = reservasCliente.map(reserva => deleteReserva(reserva.id));
+      const cancelledReservas = await Promise.all(promises);
+
+      // Process webhooks for each cancelled reservation
+      for (const reservaCancelada of cancelledReservas) {
+        if (reservaCancelada) {
+          await processWebhook(WEBHOOK_EVENTS.RESERVA_CANCELADA, reservaCancelada);
+        }
+      }
+      // The Realtime will still trigger loadReservas for consistency,
+      // but the UI will already be updated optimistically.
     } catch (error) {
-      console.error('Erro ao cancelar reservas do cliente:', error)
-      throw error
+      console.error('Erro ao cancelar reservas do cliente:', error);
+      // In case of error, revert the UI to the previous state
+      setReservas(previousReservas);
+      throw error;
     }
-  }, [buscarReservasDoCliente])
+  }, [buscarReservasDoCliente, reservas]);
 
   return {
     reservas,
