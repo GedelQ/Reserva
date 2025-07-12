@@ -49,12 +49,12 @@ const Header: React.FC<HeaderProps> = ({ dataFiltro, onDataChange }) => {
           {/* Logo */}
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
-                <Pizza className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-800">LOGO DA PIZZARIA AQUI</h1>
-                <p className="text-sm text-gray-600">Sistema de Reservas</p>
+               <div className="flex items-center gap-3">
+              <img
+                src="https://storage.googleapis.com/msgsndr/QAD6AF09FE0rBLL9YUIk/media/686b032cf7b8398719237858.png"
+                alt="Logo"
+                className="h-10"
+              />
               </div>
             </div>
           </div>
