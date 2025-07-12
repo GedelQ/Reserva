@@ -136,20 +136,8 @@ const Dashboard: React.FC<DashboardProps> = ({ dataFiltro }) => {
 
   const handleDeleteReserva = async (id: string) => {
     try {
-      // Sempre usar cancelarReserva - o modal já determina qual reserva específica cancelar
+      // Cancelar a reserva específica pelo ID
       await cancelarReserva(id)
-      handleCloseModal()
-    } catch (error) {
-      console.error('Erro ao cancelar reserva:', error)
-    }
-  }
-
-  const limparBusca = () => {
-    setTermoBusca('')
-    setTipoBusca('todos')
-  }
-
-  // Criar mesas fictícias para o modal (baseado nas reservas do cliente)
   const mesasParaModal: Mesa[] = clienteSelecionado ? 
     clienteSelecionado.mesas.map(mesaId => ({
       id: mesaId,

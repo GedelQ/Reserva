@@ -116,20 +116,8 @@ function App() {
 
   const handleDeleteReserva = async (id: string) => {
     try {
-      // Buscar a reserva atual para obter os dados do cliente
-      const reservaAtual = mesasSelecionadas[0]?.reserva
-      
-      if (reservaAtual) {
-        // Buscar todas as reservas do mesmo cliente na mesma data
-        const reservasDoCliente = buscarReservasDoCliente(
-          reservaAtual.nome_cliente,
-          reservaAtual.telefone_cliente,
-          dataFiltro
-        )
-
-        // Sempre usar cancelarReserva - o modal já determina qual reserva específica cancelar
-        await cancelarReserva(id)
-      }
+      // Cancelar a reserva específica pelo ID
+      await cancelarReserva(id)
       handleCloseModal()
     } catch (error) {
       console.error('Erro ao cancelar reserva:', error)

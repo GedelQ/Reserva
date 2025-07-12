@@ -165,7 +165,15 @@ const ModalReserva: React.FC<ModalReservaProps> = ({
           }
         } else {
           // Cancelar todas as reservas do cliente ou reserva única
-          await onDelete(reserva.id)
+          if (isEditingMultipleReservations && modo === 'todas') {
+            // Cancelar todas as reservas do cliente
+            for (const reservaCliente of reservasDoCliente) {
+              await onDelete(reservaCliente.id)
+            }
+          } else {
+            // Cancelar apenas a reserva única
+            await onDelete(reserva.id)
+          }
         }
         setSuccessMessage(
           modo === 'individual' && mesaSelecionadaParaEdicao && isEditingMultipleReservations
