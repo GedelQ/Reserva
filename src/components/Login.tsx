@@ -27,12 +27,12 @@ const Login: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-yellow-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-600 rounded-full mb-4">
-              <Pizza className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-800">LOGO DA PIZZARIA AQUI</h1>
+             <img
+              src="https://storage.googleapis.com/msgsndr/QAD6AF09FE0rBLL9YUIk/media/686b032cf7b8398719237858.png"
+              alt="Logo"
+              className="h-40 mx-auto mb-4"
+            />
             <p className="text-gray-600 mt-2">Sistema de Gestão de Reservas</p>
           </div>
 
@@ -87,13 +87,6 @@ const Login: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Credenciais de Teste */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 font-medium mb-2">Credenciais de Teste:</p>
-            <p className="text-xs text-gray-500">Email: admin@pizzaria.com</p>
-            <p className="text-xs text-gray-500">Senha: admin123</p>
-          </div>
         </div>
       </div>
     </div>
