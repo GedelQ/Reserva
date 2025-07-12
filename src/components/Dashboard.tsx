@@ -138,6 +138,16 @@ const Dashboard: React.FC<DashboardProps> = ({ dataFiltro }) => {
     try {
       // Cancelar a reserva específica pelo ID
       await cancelarReserva(id)
+    } catch (error) {
+      console.error('Erro ao cancelar reserva:', error)
+    }
+  }
+
+  const limparBusca = () => {
+    setTermoBusca('')
+    setTipoBusca('todos')
+  }
+
   const mesasParaModal: Mesa[] = clienteSelecionado ? 
     clienteSelecionado.mesas.map(mesaId => ({
       id: mesaId,
