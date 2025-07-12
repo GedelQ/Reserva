@@ -33,7 +33,7 @@ const Login: React.FC = () => {
               alt="Logo"
               className="h-40 mx-auto mb-4"
             />
-            <p className="text-gray-600 mt-2">Sistema de Gestão de Reservas</p>
+            <p className="text-gray-600 mt-2">Gestão de Reservas</p>
           </div>
 
           {/* Formulário de Login */}
