@@ -281,44 +281,49 @@ const MapaMesas: React.FC<MapaMesasProps> = ({
         </div>
 
         <div className="space-y-4">
-          {Object.entries(mesasPorFileira).map(([fileira, mesasFileira]) => (
-            <div key={fileira} className="flex items-center space-x-2">
-              <div className="w-12 text-center">
-                <span className="text-sm font-medium text-gray-600">F{fileira}</span>
+          {Object.entries(mesasPorFileira).map(([fileira, mesasFileira]) => {
+            const numeroFileira = parseInt(fileira, 10)
+            const mesasOrdenadas = numeroFileira % 2 === 0 ? [...mesasFileira].reverse() : mesasFileira
+
+            return (
+              <div key={fileira} className="flex items-center space-x-2">
+                <div className="w-12 text-center">
+                  <span className="text-sm font-medium text-gray-600">F{fileira}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {mesasOrdenadas.map((mesa) => {
+                    const podeSelecionarMesa = podeSelecionar(mesa)
+                    
+                    return (
+                      <button
+                        key={mesa.id}
+                        onClick={() => handleMesaClick(mesa)}
+                        disabled={!podeSelecionarMesa && mesa.status !== 'selecionada' && !mesa.reserva}
+                        className={`
+                          w-10 h-10 rounded-lg border-2 text-white text-sm font-medium
+                          transition-all duration-200 transform
+                          ${getStatusColor(mesa)}
+                          ${mesa.status === 'selecionada' ? 'ring-2 ring-yellow-300' : ''}
+                          ${podeSelecionarMesa || mesa.status === 'selecionada' || mesa.reserva ? 'hover:scale-105' : 'hover:scale-100'}
+                        `}
+                        title={
+                          mesa.reserva 
+                            ? `Mesa ${mesa.id} - ${mesa.reserva.nome_cliente} (${mesa.reserva.horario_reserva}) - Clique para editar`
+                            : mesa.status === 'selecionada'
+                            ? `Mesa ${mesa.id} - Selecionada (clique para desselecionar)`
+                            : !podeSelecionarMesa && mesa.status === 'disponivel'
+                            ? `Mesa ${mesa.id} - Não selecionável (limite seria ultrapassado)`
+                            : `Mesa ${mesa.id} - Disponível (clique para selecionar)`
+                        }
+                      >
+                        {mesa.id}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {mesasFileira.map((mesa) => {
-                  const podeSelecionarMesa = podeSelecionar(mesa)
-                  
-                  return (
-                    <button
-                      key={mesa.id}
-                      onClick={() => handleMesaClick(mesa)}
-                      disabled={!podeSelecionarMesa && mesa.status !== 'selecionada' && !mesa.reserva}
-                      className={`
-                        w-10 h-10 rounded-lg border-2 text-white text-sm font-medium
-                        transition-all duration-200 transform
-                        ${getStatusColor(mesa)}
-                        ${mesa.status === 'selecionada' ? 'ring-2 ring-yellow-300' : ''}
-                        ${podeSelecionarMesa || mesa.status === 'selecionada' || mesa.reserva ? 'hover:scale-105' : 'hover:scale-100'}
-                      `}
-                      title={
-                        mesa.reserva 
-                          ? `Mesa ${mesa.id} - ${mesa.reserva.nome_cliente} (${mesa.reserva.horario_reserva}) - Clique para editar`
-                          : mesa.status === 'selecionada'
-                          ? `Mesa ${mesa.id} - Selecionada (clique para desselecionar)`
-                          : !podeSelecionarMesa && mesa.status === 'disponivel'
-                          ? `Mesa ${mesa.id} - Não selecionável (limite seria ultrapassado)`
-                          : `Mesa ${mesa.id} - Disponível (clique para selecionar)`
-                      }
-                    >
-                      {mesa.id}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Estatísticas */}
