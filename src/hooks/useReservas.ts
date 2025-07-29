@@ -25,7 +25,15 @@ export const useReservas = (dataFiltro?: string) => {
     const channel = supabase
       .channel('public:reservas')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas' }, payload => {
-        refetch(); // Simplesmente recarrega os dados em qualquer mudança
+        if (payload.eventType === 'INSERT') {
+          setReservas(prev => [...prev, payload.new as Reserva]);
+        } else if (payload.eventType === 'UPDATE') {
+          setReservas(prev => prev.map(res => res.id === payload.old?.id ? payload.new as Reserva : res));
+        } else if (payload.eventType === 'DELETE') {
+          setReservas(prev => prev.filter(res => res.id !== payload.old?.id));
+        } else {
+          refetch(); // Fallback para outros tipos de evento ou erros
+        }
       })
       .subscribe();
 

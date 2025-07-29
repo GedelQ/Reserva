@@ -26,10 +26,8 @@ function App() {
     atualizarReserva,
   } = useReservas(dataFiltro)
 
-  // Efeito para limpar o estado APÓS o modal fechar, evitando flicker
   useEffect(() => {
     if (!showModal) {
-      // Atraso mínimo para permitir que a animação de saída do modal termine
       const timer = setTimeout(() => {
         setReservaEmEdicao(null);
         setMesasSelecionadas([]);
@@ -117,6 +115,9 @@ function App() {
           reservaEmEdicao.telefone_cliente,
           reservaEmEdicao.data_reserva
         );
+        // Limpar o estado de edição após o cancelamento bem-sucedido
+        setReservaEmEdicao(null);
+        setMesasSelecionadas([]);
         setShowModal(false);
       } catch (error) {
         console.error('Erro ao cancelar reserva do cliente:', error);
@@ -133,7 +134,7 @@ function App() {
     }
   }
 
-  if (loading) {
+  if (loading && reservas.length === 0) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="w-16 h-16 border-4 border-red-200 border-t-red-600 rounded-full animate-spin"></div>
@@ -172,6 +173,7 @@ function App() {
         ) : (
           <MapaMesas
             reservas={reservas}
+            loading={loading}
             dataFiltro={dataFiltro}
             onMesaClick={handleMesaClick}
             mesasSelecionadas={mesasSelecionadas}

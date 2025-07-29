@@ -85,6 +85,56 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
     setShowModal(false)
   }
 
+  useEffect(() => {
+    // Limpa os dados do cliente selecionado APÓS o modal fechar
+    if (!showModal) {
+      const timer = setTimeout(() => {
+        setClienteSelecionado(null);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showModal]);
+
+  useEffect(() => {
+    // Limpa os dados do cliente selecionado APÓS o modal fechar
+    if (!showModal) {
+      const timer = setTimeout(() => {
+        setClienteSelecionado(null);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showModal]);
+
+  useEffect(() => {
+    // Limpa os dados do cliente selecionado APÓS o modal fechar
+    if (!showModal) {
+      const timer = setTimeout(() => {
+        setClienteSelecionado(null);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showModal]);
+
+  useEffect(() => {
+    // Limpa os dados do cliente selecionado APÓS o modal fechar
+    if (!showModal) {
+      const timer = setTimeout(() => {
+        setClienteSelecionado(null);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showModal]);
+
+  useEffect(() => {
+    // Limpa os dados do cliente selecionado APÓS o modal fechar
+    if (!showModal) {
+      const timer = setTimeout(() => {
+        setClienteSelecionado(null);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showModal]);
+
   const handleUpdateDetails = async (reservaData: Partial<Reserva>) => {
     if (!clienteSelecionado) return;
     const { nome_cliente, telefone_cliente, observacoes } = reservaData;
