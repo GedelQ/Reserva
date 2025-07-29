@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { useReservas } from './hooks/useReservas'
 import { Mesa, Reserva } from './lib/supabase'
@@ -9,7 +9,7 @@ import MapaMesas from './components/MapaMesas'
 import ModalReserva from './components/ModalReserva'
 
 function App() {
-  const { user, loading } = useAuth()
+  const { user } = useAuth()
   const [dataFiltro, setDataFiltro] = useState(new Date().toISOString().split('T')[0])
   const [mesasSelecionadas, setMesasSelecionadas] = useState<Mesa[]>([])
   const [showModal, setShowModal] = useState(false)
@@ -17,12 +17,26 @@ function App() {
   const [reservaEmEdicao, setReservaEmEdicao] = useState<Reserva | null>(null)
 
   const {
+    reservas,
+    loading,
     criarReserva,
     modificarReserva,
     cancelarReservasDoCliente,
     buscarReservasDoCliente,
-    atualizarReserva, // Adicionado para o modal do dashboard
+    atualizarReserva,
   } = useReservas(dataFiltro)
+
+  // Efeito para limpar o estado APÓS o modal fechar, evitando flicker
+  useEffect(() => {
+    if (!showModal) {
+      // Atraso mínimo para permitir que a animação de saída do modal termine
+      const timer = setTimeout(() => {
+        setReservaEmEdicao(null);
+        setMesasSelecionadas([]);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showModal]);
 
   const iniciarModoEdicao = useCallback(async (reserva: Reserva) => {
     const reservasDoCliente = await buscarReservasDoCliente(
@@ -75,9 +89,6 @@ function App() {
 
   const handleCloseModal = () => {
     setShowModal(false)
-    if (!reservaEmEdicao) {
-      setMesasSelecionadas([])
-    }
   }
 
   const handleSaveOrUpdateReserva = async (reservaData: any) => {
@@ -91,8 +102,6 @@ function App() {
         await Promise.all(promises);
       }
       setShowModal(false);
-      setMesasSelecionadas([]);
-      setReservaEmEdicao(null);
     } catch (error) {
       console.error('Erro ao salvar ou atualizar reservas:', error)
     }
@@ -109,8 +118,6 @@ function App() {
           reservaEmEdicao.data_reserva
         );
         setShowModal(false);
-        setMesasSelecionadas([]);
-        setReservaEmEdicao(null);
       } catch (error) {
         console.error('Erro ao cancelar reserva do cliente:', error);
       }
@@ -156,12 +163,15 @@ function App() {
 
         {activeTab === 'dashboard' ? (
           <Dashboard 
+            reservas={reservas}
+            loading={loading}
             dataFiltro={dataFiltro} 
             onEditMesas={iniciarModoEdicao}
             atualizarReserva={atualizarReserva}
           />
         ) : (
           <MapaMesas
+            reservas={reservas}
             dataFiltro={dataFiltro}
             onMesaClick={handleMesaClick}
             mesasSelecionadas={mesasSelecionadas}
@@ -181,6 +191,7 @@ function App() {
           onClose={handleCloseModal}
           onSave={handleSaveOrUpdateReserva}
           dataFiltro={dataFiltro}
+          isDashboardMode={!reservaEmEdicao && !!mesasSelecionadas.find(m => m.reserva)}
         />
       )}
     </div>
@@ -188,5 +199,6 @@ function App() {
 }
 
 export default App
+
 
 

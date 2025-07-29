@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react'
-import { useReservas } from '../hooks/useReservas'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Users, Calendar, TrendingUp, Clock, Edit3, MapPin, AlertTriangle, Search, X } from 'lucide-react'
 import ModalReserva from './ModalReserva'
 import { Reserva } from '../lib/supabase'
 
 interface DashboardProps {
+  reservas: Reserva[];
+  loading: boolean;
   dataFiltro: string
   onEditMesas: (reserva: Reserva) => void;
   atualizarReserva: (id: string, reservaData: Partial<Reserva>) => Promise<Reserva | null>;
@@ -22,12 +23,21 @@ interface ClienteAgrupado {
 
 const LIMITE_MESAS = 30
 
-const Dashboard: React.FC<DashboardProps> = ({ dataFiltro, onEditMesas, atualizarReserva }) => {
-  const { reservas, loading } = useReservas(dataFiltro)
+const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, onEditMesas, atualizarReserva }) => {
   const [showModal, setShowModal] = useState(false)
   const [clienteSelecionado, setClienteSelecionado] = useState<ClienteAgrupado | null>(null)
   const [termoBusca, setTermoBusca] = useState('')
   const [tipoBusca, setTipoBusca] = useState<'todos' | 'mesa' | 'cliente' | 'telefone'>('todos')
+
+  useEffect(() => {
+    // Limpa os dados do cliente selecionado APÓS o modal fechar
+    if (!showModal) {
+      const timer = setTimeout(() => {
+        setClienteSelecionado(null);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showModal]);
 
   const clientesAgrupados = useMemo(() => {
     const grupos: Record<string, ClienteAgrupado> = {}
@@ -73,7 +83,6 @@ const Dashboard: React.FC<DashboardProps> = ({ dataFiltro, onEditMesas, atualiza
 
   const handleCloseModal = () => {
     setShowModal(false)
-    setClienteSelecionado(null)
   }
 
   const handleUpdateDetails = async (reservaData: Partial<Reserva>) => {
@@ -181,3 +190,4 @@ const Dashboard: React.FC<DashboardProps> = ({ dataFiltro, onEditMesas, atualiza
 }
 
 export default Dashboard
+
