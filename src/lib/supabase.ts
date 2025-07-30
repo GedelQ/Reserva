@@ -43,7 +43,7 @@ export const fetchReservas = async (filters?: { data_reserva?: string; nome_clie
     let query = supabase
       .from('reservas')
       .select('*')
-      .in('status', ['confirmada', 'pendente'])
+      .in('status', ['confirmada', 'pendente', 'cancelada'])
       .order('data_reserva', { ascending: true })
       .order('horario_reserva', { ascending: true })
 

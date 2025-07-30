@@ -28,11 +28,7 @@ export const useReservas = (dataFiltro?: string) => {
         if (payload.eventType === 'INSERT') {
           setReservas(prev => [...prev, payload.new as Reserva]);
         } else if (payload.eventType === 'UPDATE') {
-          if ((payload.new as Reserva).status === 'cancelada') {
-            setReservas(prev => prev.filter(res => res.id !== payload.old?.id));
-          } else {
-            setReservas(prev => prev.map(res => res.id === payload.old?.id ? payload.new as Reserva : res));
-          }
+          setReservas(prev => prev.map(res => res.id === payload.old?.id ? payload.new as Reserva : res));
         } else if (payload.eventType === 'DELETE') {
           setReservas(prev => prev.filter(res => res.id !== payload.old?.id));
         } else {

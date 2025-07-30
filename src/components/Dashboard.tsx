@@ -39,9 +39,13 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
     }
   }, [showModal]);
 
+  const activeReservas = useMemo(() => {
+    return reservas.filter(reserva => reserva.status !== 'cancelada');
+  }, [reservas]);
+
   const clientesAgrupados = useMemo(() => {
     const grupos: Record<string, ClienteAgrupado> = {}
-    reservas.forEach(reserva => {
+    reservas.forEach(reserva => { // Usa 'reservas' completas para agrupar todos os clientes
       const chave = `${reserva.nome_cliente}-${reserva.telefone_cliente}`
       if (!grupos[chave]) {
         grupos[chave] = { nome_cliente: reserva.nome_cliente, telefone_cliente: reserva.telefone_cliente, horario_reserva: reserva.horario_reserva, observacoes: reserva.observacoes, reservas: [], mesas: [], totalMesas: 0 }
@@ -70,8 +74,8 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
     })
   }, [clientesAgrupados, termoBusca, tipoBusca])
 
-  const totalReservas = reservas.length
-  const totalClientes = reservas.reduce((acc) => acc + 4, 0)
+  const totalReservas = activeReservas.length
+  const totalClientes = activeReservas.reduce((acc) => acc + 4, 0)
   const taxaOcupacao = Math.round((totalReservas / LIMITE_MESAS) * 100)
   const mesasDisponiveis = LIMITE_MESAS - totalReservas
   const atingiuLimite = totalReservas >= LIMITE_MESAS
@@ -84,56 +88,6 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
   const handleCloseModal = () => {
     setShowModal(false)
   }
-
-  useEffect(() => {
-    // Limpa os dados do cliente selecionado APÓS o modal fechar
-    if (!showModal) {
-      const timer = setTimeout(() => {
-        setClienteSelecionado(null);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [showModal]);
-
-  useEffect(() => {
-    // Limpa os dados do cliente selecionado APÓS o modal fechar
-    if (!showModal) {
-      const timer = setTimeout(() => {
-        setClienteSelecionado(null);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [showModal]);
-
-  useEffect(() => {
-    // Limpa os dados do cliente selecionado APÓS o modal fechar
-    if (!showModal) {
-      const timer = setTimeout(() => {
-        setClienteSelecionado(null);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [showModal]);
-
-  useEffect(() => {
-    // Limpa os dados do cliente selecionado APÓS o modal fechar
-    if (!showModal) {
-      const timer = setTimeout(() => {
-        setClienteSelecionado(null);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [showModal]);
-
-  useEffect(() => {
-    // Limpa os dados do cliente selecionado APÓS o modal fechar
-    if (!showModal) {
-      const timer = setTimeout(() => {
-        setClienteSelecionado(null);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [showModal]);
 
   const handleUpdateDetails = async (reservaData: Partial<Reserva>) => {
     if (!clienteSelecionado) return;
