@@ -91,9 +91,9 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
 
   const handleUpdateDetails = async (reservaData: Partial<Reserva>) => {
     if (!clienteSelecionado) return;
-    const { nome_cliente, telefone_cliente, observacoes, horario_reserva } = reservaData;
+    const { nome_cliente, telefone_cliente, observacoes, horario_reserva, status } = reservaData;
     for (const reserva of clienteSelecionado.reservas) {
-      await atualizarReserva(reserva.id, { nome_cliente, telefone_cliente, observacoes, horario_reserva });
+      await atualizarReserva(reserva.id, { nome_cliente, telefone_cliente, observacoes, horario_reserva, status });
     }
   };
 
@@ -171,7 +171,7 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
                           await atualizarReserva(reserva.id, { status: newStatus });
                         }
                       }}
-                      className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+                      className={`px-2 py-1 border rounded-md text-sm font-medium ${cliente.reservas[0].status === 'confirmada' ? 'bg-green-100 border-green-300 text-green-800' : cliente.reservas[0].status === 'pendente' ? 'bg-yellow-100 border-yellow-300 text-yellow-800' : 'bg-red-100 border-red-300 text-red-800'}`}
                     >
                       <option value="pendente">Pendente</option>
                       <option value="confirmada">Confirmada</option>

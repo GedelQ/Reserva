@@ -110,7 +110,7 @@ const ModalReserva: React.FC<ModalReservaProps> = ({
             <select value={formData.status} onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'confirmada' | 'pendente' | 'cancelada' }))} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required>
               <option value="pendente">Pendente</option>
               <option value="confirmada">Confirmado</option>
-              
+              <option value="cancelada">Cancelada</option>
             </select>
           </div>
           <div className="flex space-x-3">

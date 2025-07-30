@@ -59,7 +59,9 @@ function App() {
   }, [buscarReservasDoCliente, dataFiltro]);
 
   const handleMesaClick = useCallback(async (mesa: Mesa) => {
-    if (mesa.reserva && !reservaEmEdicao) {
+    // Se a mesa tem uma reserva e não estamos no modo de edição, e a reserva NÃO está cancelada,
+    // então inicia o modo de edição para essa reserva.
+    if (mesa.reserva && !reservaEmEdicao && mesa.reserva.status !== 'cancelada') {
       iniciarModoEdicao(mesa.reserva);
       return;
     }
