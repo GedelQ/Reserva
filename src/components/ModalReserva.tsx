@@ -90,15 +90,13 @@ const ModalReserva: React.FC<ModalReservaProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-2">Telefone</label>
             <input type="tel" value={formData.telefone_cliente} onChange={(e) => setFormData(prev => ({ ...prev, telefone_cliente: e.target.value }))} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
           </div>
-          {!isDashboardMode && (
-            <div>
+          <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Horário da Reserva</label>
               <select value={formData.horario_reserva} onChange={(e) => setFormData(prev => ({ ...prev, horario_reserva: e.target.value }))} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required>
                 <option value="">Selecione o horário</option>
                 {TIME_SLOTS.map(time => <option key={time} value={time}>{time}</option>)}
               </select>
             </div>
-          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Observações</label>
             <textarea value={formData.observacoes} onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))} className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none" rows={3}></textarea>

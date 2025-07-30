@@ -137,9 +137,9 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
 
   const handleUpdateDetails = async (reservaData: Partial<Reserva>) => {
     if (!clienteSelecionado) return;
-    const { nome_cliente, telefone_cliente, observacoes } = reservaData;
+    const { nome_cliente, telefone_cliente, observacoes, horario_reserva } = reservaData;
     for (const reserva of clienteSelecionado.reservas) {
-      await atualizarReserva(reserva.id, { nome_cliente, telefone_cliente, observacoes });
+      await atualizarReserva(reserva.id, { nome_cliente, telefone_cliente, observacoes, horario_reserva });
     }
   };
 
