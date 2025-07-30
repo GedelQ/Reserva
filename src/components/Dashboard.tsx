@@ -173,9 +173,8 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
                       }}
                       className={`px-2 py-1 border rounded-md text-sm font-medium ${cliente.reservas[0].status === 'confirmada' ? 'bg-green-100 border-green-300 text-green-800' : cliente.reservas[0].status === 'pendente' ? 'bg-yellow-100 border-yellow-300 text-yellow-800' : 'bg-red-100 border-red-300 text-red-800'}`}
                     >
-                      <option value="pendente">Pendente</option>
-                      <option value="confirmada">Confirmada</option>
-                      
+                      <option value="pendente" disabled={cliente.reservas[0].status === 'cancelada'}>Pendente</option>
+                      <option value="confirmada" disabled={cliente.reservas[0].status === 'cancelada'}>Confirmada</option>
                       <option value="cancelada">Cancelada</option>
                     </select>
                     <p className="font-medium text-gray-800">{cliente.horario_reserva}</p>

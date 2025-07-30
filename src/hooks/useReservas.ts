@@ -59,7 +59,18 @@ export const useReservas = (dataFiltro?: string) => {
 
   const atualizarReserva = useCallback(async (id: string, reservaData: Partial<Reserva>) => {
     try {
-      const reservaAtualizada = await updateReserva(id, reservaData)
+      let dataToUpdate = { ...reservaData };
+
+      if (reservaData.status === 'cancelada') {
+        // Busca a reserva original para obter o id_mesa atual
+        const originalReserva = await fetchReservas({ id });
+        if (originalReserva && originalReserva.length > 0 && originalReserva[0].id_mesa !== null) {
+          dataToUpdate.id_mesa_historico = originalReserva[0].id_mesa; // Copia o id_mesa para o histórico
+        }
+        dataToUpdate.id_mesa = null; // Libera a mesa ao cancelar
+      }
+
+      const reservaAtualizada = await updateReserva(id, dataToUpdate)
       if (reservaAtualizada) {
         await processWebhook(WEBHOOK_EVENTS.RESERVA_ATUALIZADA, reservaAtualizada)
       }

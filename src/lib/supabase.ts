@@ -9,13 +9,14 @@ export const supabase = createClient(supabaseUrl, supabaseKey)
 export interface Reserva {
   id: string
   created_at: string
-  id_mesa: number
+  id_mesa: number | null
   nome_cliente: string
   telefone_cliente: string
   data_reserva: string
   horario_reserva: string
   observacoes: string
   status: 'confirmada' | 'cancelada' | 'finalizada' | 'pendente'
+  id_mesa_historico?: number | null
   isOptimistic?: boolean
 }
 
@@ -38,7 +39,7 @@ export interface MesaLayout {
 }
 
 // Função para buscar reservas
-export const fetchReservas = async (filters?: { data_reserva?: string; nome_cliente?: string; telefone_cliente?: string; id_mesa?: number }) => {
+export const fetchReservas = async (filters?: { data_reserva?: string; nome_cliente?: string; telefone_cliente?: string; id_mesa?: number; id?: string }) => {
   try {
     let query = supabase
       .from('reservas')
@@ -59,8 +60,8 @@ export const fetchReservas = async (filters?: { data_reserva?: string; nome_clie
       query = query.eq('telefone_cliente', filters.telefone_cliente)
     }
     
-    if (filters?.id_mesa) {
-      query = query.eq('id_mesa', filters.id_mesa)
+    if (filters?.id) {
+      query = query.eq('id', filters.id)
     }
 
     const { data: reservas, error } = await query
