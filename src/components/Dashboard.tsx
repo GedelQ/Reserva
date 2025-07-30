@@ -209,6 +209,21 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
+                    <select
+                      value={cliente.reservas[0].status}
+                      onChange={async (e) => {
+                        const newStatus = e.target.value as Reserva['status'];
+                        for (const reserva of cliente.reservas) {
+                          await atualizarReserva(reserva.id, { status: newStatus });
+                        }
+                      }}
+                      className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="pendente">Pendente</option>
+                      <option value="confirmada">Confirmada</option>
+                      
+                      <option value="cancelada">Cancelada</option>
+                    </select>
                     <p className="font-medium text-gray-800">{cliente.horario_reserva}</p>
                     <button onClick={() => handleEditarCliente(cliente)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
                       <Edit3 className="w-5 h-5" />

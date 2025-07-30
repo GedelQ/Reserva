@@ -15,7 +15,7 @@ export interface Reserva {
   data_reserva: string
   horario_reserva: string
   observacoes: string
-  status: 'ativa' | 'cancelada' | 'finalizada' | 'pendente'
+  status: 'confirmada' | 'cancelada' | 'finalizada' | 'pendente'
   isOptimistic?: boolean
 }
 
@@ -43,7 +43,7 @@ export const fetchReservas = async (filters?: { data_reserva?: string; nome_clie
     let query = supabase
       .from('reservas')
       .select('*')
-      .in('status', ['ativa', 'pendente'])
+      .in('status', ['confirmada', 'pendente'])
       .order('data_reserva', { ascending: true })
       .order('horario_reserva', { ascending: true })
 
