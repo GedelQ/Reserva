@@ -69,7 +69,7 @@ function App() {
     setMesasSelecionadas(prev => {
       const isSelected = prev.some(m => m.id === mesa.id);
       if (isSelected) {
-        if (reservaEmEdicao && prev.length === 1) return prev;
+        
         return prev.filter(m => m.id !== mesa.id);
       } else {
         const isOcupadaPorOutro = mesa.reserva && 

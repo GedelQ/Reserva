@@ -125,7 +125,7 @@ export const deleteReserva = async (id: string) => {
   try {
     const { data, error } = await supabase
       .from('reservas')
-      .update({ status: 'cancelada' })
+      .delete()
       .eq('id', id)
       .select()
       .single()

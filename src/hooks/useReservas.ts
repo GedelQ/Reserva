@@ -116,6 +116,11 @@ export const useReservas = (dataFiltro?: string) => {
       const reservasParaRemover = reservasAtuaisDoCliente.filter(r => !idsMesasNovas.has(r.id_mesa));
       const reservasParaAtualizar = reservasAtuaisDoCliente.filter(r => idsMesasNovas.has(r.id_mesa));
 
+      console.log('modificarReserva - reservasAtuaisDoCliente:', reservasAtuaisDoCliente);
+      console.log('modificarReserva - idsMesasAtuais:', idsMesasAtuais);
+      console.log('modificarReserva - idsMesasNovas:', idsMesasNovas);
+      console.log('modificarReserva - reservasParaRemover:', reservasParaRemover);
+
       const promises = [];
 
       for (const mesa of mesasParaAdicionar) {
