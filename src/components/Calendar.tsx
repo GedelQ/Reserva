@@ -27,7 +27,7 @@ const Calendar: React.FC<CalendarProps> = ({ dataFiltro, onDataChange }) => {
       const { data, error } = await supabase
         .from('reservas')
         .select('data_reserva')
-        .eq('status', 'ativa')
+        .in('status', ['confirmada', 'pendente'])
         .gte('data_reserva', primeiroDia)
         .lte('data_reserva', ultimoDia)
 
