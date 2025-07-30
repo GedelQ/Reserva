@@ -27,7 +27,8 @@ const ModalReserva: React.FC<ModalReservaProps> = ({
     nome_cliente: '',
     telefone_cliente: '',
     horario_reserva: '',
-    observacoes: ''
+    observacoes: '',
+    status: 'pendente' // Default para novas reservas
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -39,7 +40,8 @@ const ModalReserva: React.FC<ModalReservaProps> = ({
         nome_cliente: reserva?.nome_cliente || '',
         telefone_cliente: reserva?.telefone_cliente || '',
         horario_reserva: reserva?.horario_reserva || '',
-        observacoes: reserva?.observacoes || ''
+        observacoes: reserva?.observacoes || '',
+        status: reserva?.status || 'pendente'
       });
       setError('');
       setSuccessMessage('');
@@ -53,11 +55,13 @@ const ModalReserva: React.FC<ModalReservaProps> = ({
     setError('')
     setSuccessMessage('')
 
+    console.log('formData before onSave:', formData);
+
     try {
       await onSave({
         ...formData,
         data_reserva: dataFiltro,
-        status: 'ativa',
+        status: formData.status,
       });
       setSuccessMessage(reserva ? 'Reserva atualizada com sucesso!' : 'Reserva criada com sucesso!');
       setTimeout(() => onClose(), 1500);
@@ -100,6 +104,14 @@ const ModalReserva: React.FC<ModalReservaProps> = ({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Observações</label>
             <textarea value={formData.observacoes} onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))} className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none" rows={3}></textarea>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status da Reserva</label>
+            <select value={formData.status} onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'ativa' | 'pendente' | 'cancelada' }))} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required>
+              <option value="pendente">Pendente</option>
+              <option value="ativa">Confirmado</option>
+              <option value="cancelada">Cancelada</option>
+            </select>
           </div>
           <div className="flex space-x-3">
             {isDashboardMode && onEditMesas && (

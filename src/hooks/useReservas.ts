@@ -130,6 +130,7 @@ export const useReservas = (dataFiltro?: string) => {
           nome_cliente: reservaData.nome_cliente || reservaOriginal.nome_cliente,
           telefone_cliente: reservaData.telefone_cliente || reservaOriginal.telefone_cliente,
           horario_reserva: reservaData.horario_reserva || reservaOriginal.horario_reserva,
+          status: reservaData.status || reservaOriginal.status, // Adicionado o status
         }));
       }
 

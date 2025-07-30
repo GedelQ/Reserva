@@ -15,6 +15,7 @@ interface ReservaRequest {
   data_reserva: string
   horario_reserva: string
   observacoes?: string
+  status?: 'ativa' | 'cancelada' | 'finalizada' | 'pendente'
 }
 
 interface DisponibilidadeQuery {
@@ -312,8 +313,9 @@ Deno.serve(async (req) => {
         data_reserva: body.data_reserva,
         horario_reserva: body.horario_reserva,
         observacoes: body.observacoes || '',
-        status: 'ativa'
+        status: body.status || 'ativa' // Usar o status do body ou 'ativa' como fallback
       }))
+      console.log('Reservas para criar na Edge Function:', reservasParaCriar);
 
       const { data: novasReservas, error: errorCriar } = await supabaseClient
         .from('reservas')

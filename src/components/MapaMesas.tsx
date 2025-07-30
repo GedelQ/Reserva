@@ -92,11 +92,11 @@ const MapaMesas: React.FC<MapaMesasProps> = ({
           status = 'em-edicao';
         } else if (isMesaDoClienteEmEdicao) {
           status = 'disponivel'; 
-        } else if (reserva && reserva.status === 'ativa') {
+        } else if (reserva && (reserva.status === 'ativa' || reserva.status === 'pendente')) {
         status = 'ocupada';
         }
       } else {
-        if (reserva && reserva.status === 'ativa') {
+        if (reserva && (reserva.status === 'ativa' || reserva.status === 'pendente')) {
           status = 'ocupada'
         }
         if (idsMesasSelecionadas.has(mesa.id)) {
@@ -129,7 +129,7 @@ const MapaMesas: React.FC<MapaMesasProps> = ({
     }
     
     if (mesasSelecionadas.find(m => m.id === mesa.id)) return true;
-    if (mesa.reserva && mesa.reserva.status === 'ativa') return true;
+    if (mesa.reserva && (mesa.reserva.status === 'ativa' || mesa.reserva.status === 'pendente')) return true;
     if (atingiuLimite) return false;
     return (totalReservas + mesasSelecionadas.length) < LIMITE_MESAS;
   }
