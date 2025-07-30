@@ -51,7 +51,11 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
         grupos[chave] = { nome_cliente: reserva.nome_cliente, telefone_cliente: reserva.telefone_cliente, horario_reserva: reserva.horario_reserva, observacoes: reserva.observacoes, reservas: [], mesas: [], totalMesas: 0 }
       }
       grupos[chave].reservas.push(reserva)
-      grupos[chave].mesas.push(reserva.id_mesa)
+      if (reserva.status === 'cancelada' && reserva.id_mesa_historico !== null) {
+        grupos[chave].mesas.push(reserva.id_mesa_historico);
+      } else if (reserva.id_mesa !== null) {
+        grupos[chave].mesas.push(reserva.id_mesa);
+      }
       grupos[chave].totalMesas++
     })
     return Object.values(grupos).sort((a, b) => a.horario_reserva.localeCompare(b.horario_reserva))
