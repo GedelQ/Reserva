@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { generateMesasLayout, type MesaLayout, type Reserva } from '../lib/supabase'
-import { Plus, X, AlertTriangle, Edit, Trash2 } from 'lucide-react'
+import { Plus, X, AlertTriangle, Edit, Trash2, CheckCircle } from 'lucide-react'
 
 interface Mesa extends MesaLayout {
   status: 'disponivel' | 'ocupada' | 'selecionada' | 'em-edicao'
@@ -9,14 +9,16 @@ interface Mesa extends MesaLayout {
 
 interface MapaMesasProps {
   reservas: Reserva[];
-  loading: boolean; // Adicionado prop loading
+  loading: boolean;
   dataFiltro: string
   onMesaClick: (mesa: Mesa) => void
   mesasSelecionadas: Mesa[]
   onOpenModal: () => void
   onClearSelection: () => void
   reservaEmEdicao: Reserva | null
-  onCancelReservation: () => void // Alterado para chamar a função de request
+  onCancelReservation: (reserva: Reserva) => void
+  message: { type: 'success' | 'error', text: string } | null;
+  clearMessage: () => void;
 }
 
 const LIMITE_MESAS = 30
@@ -52,15 +54,26 @@ const MapaSkeleton: React.FC = () => (
 
 const MapaMesas: React.FC<MapaMesasProps> = ({ 
   reservas,
-  loading, // Recebendo a prop loading
+  loading,
   dataFiltro,
   onMesaClick, 
   mesasSelecionadas,
   onOpenModal,
   onClearSelection,
   reservaEmEdicao,
-  onCancelReservation
+  onCancelReservation,
+  message,
+  clearMessage
 }) => {
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        clearMessage();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [message, clearMessage]);
+
   const mesas = useMemo(() => {
     const mesasLayout = generateMesasLayout()
     const idsMesasSelecionadas = new Set(mesasSelecionadas.map(m => m.id));
@@ -79,8 +92,8 @@ const MapaMesas: React.FC<MapaMesasProps> = ({
           status = 'em-edicao';
         } else if (isMesaDoClienteEmEdicao) {
           status = 'disponivel'; 
-        } else if (reserva) {
-          status = 'ocupada';
+        } else if (reserva && reserva.status === 'ativa') {
+        status = 'ocupada';
         }
       } else {
         if (reserva && reserva.status === 'ativa') {
@@ -116,7 +129,7 @@ const MapaMesas: React.FC<MapaMesasProps> = ({
     }
     
     if (mesasSelecionadas.find(m => m.id === mesa.id)) return true;
-    if (mesa.reserva) return true;
+    if (mesa.reserva && mesa.reserva.status === 'ativa') return true;
     if (atingiuLimite) return false;
     return (totalReservas + mesasSelecionadas.length) < LIMITE_MESAS;
   }
@@ -144,6 +157,21 @@ const MapaMesas: React.FC<MapaMesasProps> = ({
 
   return (
     <div className="space-y-6">
+      {message && (
+        <div className={`p-4 rounded-lg border ${message.type === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className="flex items-start space-x-2">
+            {message.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+            )}
+            <p className={`text-sm font-medium ${message.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
+              {message.text}
+            </p>
+          </div>
+        </div>
+      )}
+
       {reservaEmEdicao && (
         <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 shadow-lg animate-pulse-slow">
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -154,7 +182,7 @@ const MapaMesas: React.FC<MapaMesasProps> = ({
             </div>
             <div className="flex items-center space-x-2 ml-4">
               <button onClick={onClearSelection} className="px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 bg-gray-200 text-gray-700 hover:bg-gray-300"><X className="w-4 h-4" /><span>Cancelar Edição</span></button>
-              <button onClick={onCancelReservation} className="px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 bg-red-600 text-white hover:bg-red-700"><Trash2 className="w-4 h-4" /><span>Cancelar Reserva</span></button>
+              <button onClick={() => onCancelReservation(reservaEmEdicao!)} className="px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 bg-red-600 text-white hover:bg-red-700"><Trash2 className="w-4 h-4" /><span>Cancelar Reserva</span></button>
               <button onClick={onOpenModal} className="px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-700"><Edit className="w-4 h-4" /><span>Confirmar</span></button>
             </div>
           </div>

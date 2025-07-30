@@ -7,6 +7,7 @@ import Header from './components/Header'
 import Dashboard from './components/Dashboard'
 import MapaMesas from './components/MapaMesas'
 import ModalReserva from './components/ModalReserva'
+import ConfirmModal from './components/ConfirmModal'
 
 function App() {
   const { user } = useAuth()
@@ -105,24 +106,46 @@ function App() {
     }
   }
 
-  const handleCancelReservation = async () => {
-    if (!reservaEmEdicao) return;
+  const [showConfirmCancelModal, setShowConfirmCancelModal] = useState(false);
+  const [reservaToCancel, setReservaToCancel] = useState<Reserva | null>(null);
 
-    if (window.confirm(`Tem certeza que deseja cancelar TODAS as reservas de ${reservaEmEdicao.nome_cliente}?`)) {
-      try {
-        await cancelarReservasDoCliente(
-          reservaEmEdicao.nome_cliente,
-          reservaEmEdicao.telefone_cliente,
-          reservaEmEdicao.data_reserva
-        );
-        // Limpar o estado de edição após o cancelamento bem-sucedido
-        setReservaEmEdicao(null);
-        setMesasSelecionadas([]);
-        setShowModal(false);
-      } catch (error) {
-        console.error('Erro ao cancelar reserva do cliente:', error);
-      }
+  const handleCancelReservation = (reserva: Reserva) => {
+    setReservaToCancel(reserva);
+    setShowConfirmCancelModal(true);
+  };
+
+  const [mapaMessage, setMapaMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const clearMapaMessage = useCallback(() => {
+    setMapaMessage(null);
+  }, []);
+
+  const confirmCancelReservation = async () => {
+    if (!reservaToCancel) return;
+
+    try {
+      await cancelarReservasDoCliente(
+        reservaToCancel.nome_cliente,
+        reservaToCancel.telefone_cliente,
+        reservaToCancel.data_reserva
+      );
+      setReservaEmEdicao(null);
+      setMesasSelecionadas([]);
+      setShowModal(false);
+      setReservaToCancel(null);
+      setShowConfirmCancelModal(false);
+      setMapaMessage({ type: 'success', text: `Reservas de ${reservaToCancel.nome_cliente} canceladas com sucesso!` });
+    } catch (error) {
+      console.error('Erro ao cancelar reserva do cliente:', error);
+      setMapaMessage({ type: 'error', text: 'Erro ao cancelar reservas. Tente novamente.' });
+      setReservaToCancel(null);
+      setShowConfirmCancelModal(false);
     }
+  };
+
+  const cancelCancelReservation = () => {
+    setReservaToCancel(null);
+    setShowConfirmCancelModal(false);
   };
 
   const handleClearSelection = () => {
@@ -181,6 +204,8 @@ function App() {
             onClearSelection={handleClearSelection}
             reservaEmEdicao={reservaEmEdicao}
             onCancelReservation={handleCancelReservation}
+            message={mapaMessage}
+            clearMessage={clearMapaMessage}
           />
         )}
       </div>
@@ -193,7 +218,19 @@ function App() {
           onClose={handleCloseModal}
           onSave={handleSaveOrUpdateReserva}
           dataFiltro={dataFiltro}
-          isDashboardMode={!reservaEmEdicao && !!mesasSelecionadas.find(m => m.reserva)}
+          isDashboardMode={false}
+        />
+      )}
+
+      {showConfirmCancelModal && reservaToCancel && (
+        <ConfirmModal
+          isOpen={showConfirmCancelModal}
+          title="Confirmar Cancelamento"
+          message={`Tem certeza que deseja cancelar TODAS as reservas de ${reservaToCancel.nome_cliente}? Esta ação não pode ser desfeita.`}
+          onConfirm={confirmCancelReservation}
+          onCancel={cancelCancelReservation}
+          confirmText="Sim, Cancelar"
+          cancelText="Não, Manter"
         />
       )}
     </div>
