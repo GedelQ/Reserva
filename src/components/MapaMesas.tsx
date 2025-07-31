@@ -112,7 +112,11 @@ const MapaMesas: React.FC<MapaMesasProps> = ({
     })
   }, [reservas, mesasSelecionadas, reservaEmEdicao])
 
-  const totalReservas = reservas.length
+  const activeReservas = useMemo(() => {
+    return reservas.filter(reserva => reserva.status !== 'cancelada');
+  }, [reservas]);
+
+  const totalReservas = activeReservas.length
   const mesasDisponiveis = LIMITE_MESAS - totalReservas
   const atingiuLimite = totalReservas >= LIMITE_MESAS
   const proximoDoLimite = !atingiuLimite && (totalReservas >= LIMITE_MESAS - 5)

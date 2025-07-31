@@ -126,11 +126,18 @@ function App() {
     if (!reservaToCancel) return;
 
     try {
-      await cancelarReservasDoCliente(
+      // Buscar todas as reservas do cliente para o dia
+      const reservasDoCliente = await buscarReservasDoCliente(
         reservaToCancel.nome_cliente,
         reservaToCancel.telefone_cliente,
         reservaToCancel.data_reserva
       );
+
+      // Atualizar o status de cada reserva para 'cancelada'
+      for (const reserva of reservasDoCliente) {
+        await atualizarReserva(reserva.id, { status: 'cancelada' });
+      }
+
       setReservaEmEdicao(null);
       setMesasSelecionadas([]);
       setShowModal(false);
