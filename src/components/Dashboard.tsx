@@ -182,7 +182,11 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
                       <option value="cancelada">Cancelada</option>
                     </select>
                     <p className="font-medium text-gray-800">{cliente.horario_reserva}</p>
-                    <button onClick={() => handleEditarCliente(cliente)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                    <button
+                      onClick={() => handleEditarCliente(cliente)}
+                      disabled={cliente.reservas[0].status === 'cancelada'}
+                      className={`p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ${cliente.reservas[0].status === 'cancelada' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
                       <Edit3 className="w-5 h-5" />
                     </button>
                   </div>
