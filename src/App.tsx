@@ -201,6 +201,7 @@ function App() {
             dataFiltro={dataFiltro} 
             onEditMesas={iniciarModoEdicao}
             atualizarReserva={atualizarReserva}
+            onCancelReservation={handleCancelReservation}
           />
         ) : (
           <MapaMesas
