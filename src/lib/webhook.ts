@@ -1,6 +1,9 @@
 import { supabase } from './supabase'
 import { Reserva } from './supabase'
 
+// 📍 ESTE É O ARQUIVO PRINCIPAL DO WEBHOOK
+// Localização: src/lib/webhook.ts
+
 interface WebhookConfig {
   id: string
   endpoint_url: string
