@@ -44,55 +44,98 @@ export const useReservas = (dataFiltro?: string) => {
     };
   }, [dataFiltro, refetch]);
 
-  const criarReserva = useCallback(async (reservaData: Omit<Reserva, 'id' | 'created_at'>) => {
+  const criarReserva = useCallback(async (
+    reservaData: Omit<Reserva, 'id' | 'created_at'>,
+    dispatchWebhook = true
+  ) => {
     try {
       const novaReserva = await createReserva(reservaData);
-      await processWebhook(WEBHOOK_EVENTS.RESERVA_CRIADA, novaReserva);
-      // O refetch automático do realtime cuidará da atualização da UI
+      if (dispatchWebhook) {
+        await processWebhook(WEBHOOK_EVENTS.RESERVA_CRIADA, novaReserva);
+      }
       return novaReserva;
     } catch (error) {
       console.error('Erro ao criar reserva:', error);
-      refetch(); // Garante a consistência em caso de erro
+      refetch();
       throw error;
     }
   }, [refetch]);
 
-  const atualizarReserva = useCallback(async (id: string, reservaData: Partial<Reserva>) => {
+  const criarMultiplasReservas = useCallback(async (
+    reservaData: Omit<Reserva, 'id' | 'created_at' | 'id_mesa'>,
+    mesas: Mesa[]
+  ) => {
+    try {
+      const promises = mesas.map(mesa => createReserva({ ...reservaData, id_mesa: mesa.id }, false));
+      const novasReservas = await Promise.all(promises);
+      const reservasValidas = novasReservas.filter(r => r !== null) as Reserva[];
+      if (reservasValidas.length > 0) {
+        await processWebhook(WEBHOOK_EVENTS.RESERVA_CRIADA, reservasValidas);
+      }
+      return reservasValidas;
+    } catch (error) {
+      console.error('Erro ao criar múltiplas reservas:', error);
+      refetch();
+      throw error;
+    }
+  }, [refetch]);
+
+  const atualizarReserva = useCallback(async (
+    id: string,
+    reservaData: Partial<Reserva>,
+    dispatchWebhook = true
+  ) => {
     try {
       let dataToUpdate = { ...reservaData };
 
       if (reservaData.status === 'cancelada') {
-        // Busca a reserva original para obter o id_mesa atual
         const originalReserva = await fetchReservas({ id });
         if (originalReserva && originalReserva.length > 0 && originalReserva[0].id_mesa !== null) {
-          dataToUpdate.id_mesa_historico = originalReserva[0].id_mesa; // Copia o id_mesa para o histórico
+          dataToUpdate.id_mesa_historico = originalReserva[0].id_mesa;
         }
-        dataToUpdate.id_mesa = null; // Libera a mesa ao cancelar
+        dataToUpdate.id_mesa = null;
       }
 
-      const reservaAtualizada = await updateReserva(id, dataToUpdate)
-      if (reservaAtualizada) {
-        await processWebhook(WEBHOOK_EVENTS.RESERVA_ATUALIZADA, reservaAtualizada)
+      const reservaAtualizada = await updateReserva(id, dataToUpdate);
+      if (dispatchWebhook && reservaAtualizada) {
+        // Se o status for cancelado, o evento correto deve ser usado
+        const event = reservaData.status === 'cancelada' 
+          ? WEBHOOK_EVENTS.RESERVA_CANCELADA 
+          : WEBHOOK_EVENTS.RESERVA_ATUALIZADA;
+        await processWebhook(event, reservaAtualizada);
       }
-      return reservaAtualizada
+      return reservaAtualizada;
     } catch (error) {
-      console.error('Erro ao atualizar reserva:', error)
-      throw error
+      console.error('Erro ao atualizar reserva:', error);
+      throw error;
     }
-  }, [])
+  }, []);
 
-  const cancelarReserva = useCallback(async (id: string) => {
+  const cancelarReserva = useCallback(async (id: string, dispatchWebhook = true) => {
     try {
-      const reservaCancelada = await deleteReserva(id)
-      if (reservaCancelada) {
-        await processWebhook(WEBHOOK_EVENTS.RESERVA_CANCELADA, reservaCancelada)
-      }
-      return reservaCancelada
+      // A lógica de cancelamento agora é uma atualização de status
+      const reservaCancelada = await atualizarReserva(id, { status: 'cancelada' }, dispatchWebhook);
+      return reservaCancelada;
     } catch (error) {
-      console.error('Erro ao cancelar reserva:', error)
-      throw error
+      console.error('Erro ao cancelar reserva:', error);
+      throw error;
     }
-  }, [])
+  }, [atualizarReserva]);
+
+  const cancelarMultiplasReservas = useCallback(async (reservas: Reserva[]) => {
+    try {
+      const promises = reservas.map(r => atualizarReserva(r.id, { status: 'cancelada' }, false));
+      const resultados = await Promise.all(promises);
+      const reservasCanceladas = resultados.filter(r => r !== null) as Reserva[];
+      if (reservasCanceladas.length > 0) {
+        await processWebhook(WEBHOOK_EVENTS.RESERVA_CANCELADA, reservasCanceladas);
+      }
+      return reservasCanceladas;
+    } catch (error) {
+      console.error('Erro ao cancelar múltiplas reservas:', error);
+      throw error;
+    }
+  }, [atualizarReserva]);
 
   const buscarReservasDoCliente = useCallback(async (nomeCliente: string, telefoneCliente: string, dataReserva: string) => {
     try {
@@ -100,13 +143,13 @@ export const useReservas = (dataFiltro?: string) => {
         nome_cliente: nomeCliente,
         telefone_cliente: telefoneCliente,
         data_reserva: dataReserva
-      })
-      return reservasCliente
+      });
+      return reservasCliente;
     } catch (error) {
-      console.error('Erro ao buscar reservas do cliente:', error)
-      throw error
+      console.error('Erro ao buscar reservas do cliente:', error);
+      throw error;
     }
-  }, [])
+  }, []);
 
   const modificarReserva = useCallback(async (
     reservaOriginal: Reserva,
@@ -115,22 +158,14 @@ export const useReservas = (dataFiltro?: string) => {
   ) => {
     setLoading(true);
     try {
-      const reservasAtuaisDoCliente = await buscarReservasDoCliente(
-        reservaOriginal.nome_cliente,
-        reservaOriginal.telefone_cliente,
-        reservaOriginal.data_reserva
-      );
+      const { nome_cliente, telefone_cliente, data_reserva } = reservaOriginal;
+      const reservasAtuaisDoCliente = await buscarReservasDoCliente(nome_cliente, telefone_cliente, data_reserva);
       const idsMesasAtuais = new Set(reservasAtuaisDoCliente.map(r => r.id_mesa));
       const idsMesasNovas = new Set(novasMesas.map(m => m.id));
 
       const mesasParaAdicionar = novasMesas.filter(m => !idsMesasAtuais.has(m.id));
       const reservasParaRemover = reservasAtuaisDoCliente.filter(r => !idsMesasNovas.has(r.id_mesa));
       const reservasParaAtualizar = reservasAtuaisDoCliente.filter(r => idsMesasNovas.has(r.id_mesa));
-
-      console.log('modificarReserva - reservasAtuaisDoCliente:', reservasAtuaisDoCliente);
-      console.log('modificarReserva - idsMesasAtuais:', idsMesasAtuais);
-      console.log('modificarReserva - idsMesasNovas:', idsMesasNovas);
-      console.log('modificarReserva - reservasParaRemover:', reservasParaRemover);
 
       const promises = [];
 
@@ -142,19 +177,24 @@ export const useReservas = (dataFiltro?: string) => {
           nome_cliente: reservaData.nome_cliente || reservaOriginal.nome_cliente,
           telefone_cliente: reservaData.telefone_cliente || reservaOriginal.telefone_cliente,
           horario_reserva: reservaData.horario_reserva || reservaOriginal.horario_reserva,
-          status: reservaData.status || reservaOriginal.status, // Adicionado o status
-        }));
+          status: reservaData.status || reservaOriginal.status,
+        }, false)); // dispatchWebhook = false
       }
 
       for (const reserva of reservasParaRemover) {
-        promises.push(deleteReserva(reserva.id));
+        promises.push(deleteReserva(reserva.id, false)); // dispatchWebhook = false
       }
 
       for (const reserva of reservasParaAtualizar) {
-        promises.push(updateReserva(reserva.id, reservaData));
+        promises.push(updateReserva(reserva.id, reservaData, false)); // dispatchWebhook = false
       }
 
       await Promise.all(promises);
+
+      const reservasFinais = await buscarReservasDoCliente(nome_cliente, telefone_cliente, data_reserva);
+      if (reservasFinais.length > 0) {
+        await processWebhook(WEBHOOK_EVENTS.RESERVA_ATUALIZADA, reservasFinais);
+      }
 
     } catch (error) {
       console.error('Erro ao modificar reserva:', error);
@@ -164,25 +204,18 @@ export const useReservas = (dataFiltro?: string) => {
     }
   }, [buscarReservasDoCliente, refetch]);
 
-
   const atualizarReservasDoCliente = useCallback(async (nomeCliente: string, telefoneCliente: string, dataReserva: string, reservaData: Partial<Reserva>) => {
     try {
-      const reservasCliente = await buscarReservasDoCliente(nomeCliente, telefoneCliente, dataReserva)
-      const promises = reservasCliente.map(reserva => updateReserva(reserva.id, reservaData))
-      await Promise.all(promises)
-    } catch (error) {
-      console.error('Erro ao atualizar reservas do cliente:', error)
-      throw error
-    }
-  }, [buscarReservasDoCliente])
-
-  const cancelarReservasDoCliente = useCallback(async (nomeCliente: string, telefoneCliente: string, dataReserva: string) => {
-    try {
       const reservasCliente = await buscarReservasDoCliente(nomeCliente, telefoneCliente, dataReserva);
-      const promises = reservasCliente.map(reserva => deleteReserva(reserva.id));
-      await Promise.all(promises);
+      const promises = reservasCliente.map(reserva => updateReserva(reserva.id, reservaData, false));
+      const resultados = await Promise.all(promises);
+      
+      const reservasAtualizadas = resultados.filter(r => r !== null) as Reserva[];
+      if (reservasAtualizadas.length > 0) {
+        await processWebhook(WEBHOOK_EVENTS.RESERVA_ATUALIZADA, reservasAtualizadas);
+      }
     } catch (error) {
-      console.error('Erro ao cancelar reservas do cliente:', error);
+      console.error('Erro ao atualizar reservas do cliente:', error);
       throw error;
     }
   }, [buscarReservasDoCliente]);
@@ -193,11 +226,12 @@ export const useReservas = (dataFiltro?: string) => {
     error,
     refetch,
     criarReserva,
+    criarMultiplasReservas,
     atualizarReserva,
     cancelarReserva,
+    cancelarMultiplasReservas,
     buscarReservasDoCliente,
     atualizarReservasDoCliente,
-    cancelarReservasDoCliente,
     modificarReserva
   }
 }

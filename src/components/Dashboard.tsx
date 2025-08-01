@@ -9,6 +9,7 @@ interface DashboardProps {
   dataFiltro: string
   onEditMesas: (reserva: Reserva) => void;
   atualizarReserva: (id: string, reservaData: Partial<Reserva>) => Promise<Reserva | null>;
+  atualizarReservasDoCliente: (nomeCliente: string, telefoneCliente: string, dataReserva: string, reservaData: Partial<Reserva>) => Promise<void>;
   onCancelReservation: (reserva: Reserva) => void;
 }
 
@@ -24,7 +25,7 @@ interface ClienteAgrupado {
 
 const LIMITE_MESAS = 30
 
-const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, onEditMesas, atualizarReserva, onCancelReservation }) => {
+const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, onEditMesas, atualizarReserva, atualizarReservasDoCliente, onCancelReservation }) => {
   const [showModal, setShowModal] = useState(false)
   const [clienteSelecionado, setClienteSelecionado] = useState<ClienteAgrupado | null>(null)
   const [termoBusca, setTermoBusca] = useState('')
@@ -175,9 +176,7 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
                         if (newStatus === 'cancelada') {
                           onCancelReservation(cliente.reservas[0]);
                         } else {
-                          for (const reserva of cliente.reservas) {
-                            await atualizarReserva(reserva.id, { status: newStatus });
-                          }
+                          await atualizarReservasDoCliente(cliente.nome_cliente, cliente.telefone_cliente, dataFiltro, { status: newStatus });
                         }
                       }}
                       className={`px-2 py-1 border rounded-md text-sm font-medium ${cliente.reservas[0].status === 'confirmada' ? 'bg-green-100 border-green-300 text-green-800' : cliente.reservas[0].status === 'pendente' ? 'bg-yellow-100 border-yellow-300 text-yellow-800' : 'bg-red-100 border-red-300 text-red-800'}`}

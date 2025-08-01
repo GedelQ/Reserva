@@ -21,10 +21,12 @@ function App() {
     reservas,
     loading,
     criarReserva,
+    criarMultiplasReservas,
     modificarReserva,
-    cancelarReservasDoCliente,
+    cancelarMultiplasReservas, // Importar a nova função
     buscarReservasDoCliente,
     atualizarReserva,
+    atualizarReservasDoCliente,
   } = useReservas(dataFiltro)
 
   useEffect(() => {
@@ -59,8 +61,6 @@ function App() {
   }, [buscarReservasDoCliente, dataFiltro]);
 
   const handleMesaClick = useCallback(async (mesa: Mesa) => {
-    // Se a mesa tem uma reserva e não estamos no modo de edição, e a reserva NÃO está cancelada,
-    // então inicia o modo de edição para essa reserva.
     if (mesa.reserva && !reservaEmEdicao && mesa.reserva.status !== 'cancelada') {
       iniciarModoEdicao(mesa.reserva);
       return;
@@ -69,7 +69,6 @@ function App() {
     setMesasSelecionadas(prev => {
       const isSelected = prev.some(m => m.id === mesa.id);
       if (isSelected) {
-        
         return prev.filter(m => m.id !== mesa.id);
       } else {
         const isOcupadaPorOutro = mesa.reserva && 
@@ -97,10 +96,11 @@ function App() {
       if (reservaEmEdicao) {
         await modificarReserva(reservaEmEdicao, mesasSelecionadas, reservaData);
       } else {
-        const promises = mesasSelecionadas.map(mesa => 
-          criarReserva({ ...reservaData, id_mesa: mesa.id })
-        );
-        await Promise.all(promises);
+        if (mesasSelecionadas.length > 1) {
+          await criarMultiplasReservas(reservaData, mesasSelecionadas);
+        } else if (mesasSelecionadas.length === 1) {
+          await criarReserva({ ...reservaData, id_mesa: mesasSelecionadas[0].id });
+        }
       }
       setShowModal(false);
     } catch (error) {
@@ -126,16 +126,14 @@ function App() {
     if (!reservaToCancel) return;
 
     try {
-      // Buscar todas as reservas do cliente para o dia
       const reservasDoCliente = await buscarReservasDoCliente(
         reservaToCancel.nome_cliente,
         reservaToCancel.telefone_cliente,
         reservaToCancel.data_reserva
       );
 
-      // Atualizar o status de cada reserva para 'cancelada'
-      for (const reserva of reservasDoCliente) {
-        await atualizarReserva(reserva.id, { status: 'cancelada' });
+      if (reservasDoCliente.length > 0) {
+        await cancelarMultiplasReservas(reservasDoCliente);
       }
 
       setReservaEmEdicao(null);
@@ -201,6 +199,7 @@ function App() {
             dataFiltro={dataFiltro} 
             onEditMesas={iniciarModoEdicao}
             atualizarReserva={atualizarReserva}
+            atualizarReservasDoCliente={atualizarReservasDoCliente}
             onCancelReservation={handleCancelReservation}
           />
         ) : (
@@ -248,6 +247,8 @@ function App() {
 }
 
 export default App
+
+
 
 
 

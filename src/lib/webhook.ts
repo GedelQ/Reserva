@@ -15,12 +15,13 @@ interface WebhookPayload {
   data: {
     reserva?: Reserva
     reservas?: Reserva[]
-    cliente: {
+    cliente?: {
       nome: string
       telefone: string
     }
-    mesas: number[]
-    total_mesas: number
+    mesas?: number[]
+    total_mesas?: number
+    mesas_canceladas?: number[]
     [key: string]: any
   }
 }
@@ -130,33 +131,39 @@ export const processWebhook = async (event: string, reserva: Reserva | Reserva[]
     const primeiraReserva = reservas[0]
     
     // Preparar payload baseado no tipo
-    const payload: WebhookPayload = isMultiple ? {
-      event,
-      timestamp: new Date().toISOString(),
-      data: {
-        reservas: reservas,
-        cliente: {
-          nome: primeiraReserva.nome_cliente,
-          telefone: primeiraReserva.telefone_cliente
-        },
-        mesas: reservas.map(r => r.id_mesa),
-        total_mesas: reservas.length,
-        data_reserva: primeiraReserva.data_reserva,
-        horario_reserva: primeiraReserva.horario_reserva,
-        observacoes: primeiraReserva.observacoes
-      }
-    } : {
-      event,
-      timestamp: new Date().toISOString(),
-      data: {
-        reserva: primeiraReserva,
-        cliente: {
-          nome: primeiraReserva.nome_cliente,
-          telefone: primeiraReserva.telefone_cliente
-        },
-        mesas: [primeiraReserva.id_mesa],
-        total_mesas: 1
-      }
+    let payload: WebhookPayload;
+
+    if (isMultiple) {
+      payload = {
+        event,
+        timestamp: new Date().toISOString(),
+        data: {
+          reservas: reservas,
+          cliente: {
+            nome: primeiraReserva.nome_cliente,
+            telefone: primeiraReserva.telefone_cliente
+          },
+          mesas: reservas.map(r => r.status === 'cancelada' ? r.id_mesa_historico : r.id_mesa),
+          total_mesas: reservas.length,
+          data_reserva: primeiraReserva.data_reserva,
+          horario_reserva: primeiraReserva.horario_reserva,
+          observacoes: primeiraReserva.observacoes
+        }
+      };
+    } else {
+      payload = {
+        event,
+        timestamp: new Date().toISOString(),
+        data: {
+          reserva: primeiraReserva,
+          cliente: {
+            nome: primeiraReserva.nome_cliente,
+            telefone: primeiraReserva.telefone_cliente
+          },
+          mesas: [primeiraReserva.status === 'cancelada' ? primeiraReserva.id_mesa_historico : primeiraReserva.id_mesa],
+          total_mesas: 1
+        }
+      };
     }
 
     // Enviar webhook
