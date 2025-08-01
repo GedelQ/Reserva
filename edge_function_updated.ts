@@ -1,5 +1,175 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// --- Início da Lógica de Webhook ---
+
+// Tipos do Webhook e da Reserva
+interface Reserva {
+  id: string;
+  created_at: string;
+  id_mesa: number | null;
+  nome_cliente: string;
+  telefone_cliente: string;
+  data_reserva: string;
+  horario_reserva: string;
+  observacoes: string;
+  status: 'confirmada' | 'cancelada' | 'finalizada' | 'pendente';
+  id_mesa_historico?: number | null;
+}
+
+interface WebhookConfig {
+  id: string;
+  endpoint_url: string;
+  enabled: boolean;
+  secret_key?: string;
+  events: string[];
+}
+
+interface WebhookPayload {
+  event: string;
+  timestamp: string;
+  data: {
+    reservas: Reserva[];
+    cliente?: {
+      nome: string;
+      telefone: string;
+    };
+    mesas?: (number | null)[];
+    total_mesas?: number;
+    [key: string]: any;
+  };
+}
+
+const WEBHOOK_EVENTS = {
+  RESERVA_CRIADA: 'reserva_criada',
+  RESERVA_ATUALIZADA: 'reserva_atualizada',
+  RESERVA_CANCELADA: 'reserva_cancelada',
+} as const;
+
+// Função para gerar assinatura HMAC-SHA256
+const generateSignature = async (payload: string, secret: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const key = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+  const hashArray = Array.from(new Uint8Array(signature));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return `sha256=${hashHex}`;
+};
+
+// Função para enviar webhook
+const sendWebhook = async (config: WebhookConfig, payload: WebhookPayload): Promise<boolean> => {
+  try {
+    const payloadString = JSON.stringify(payload);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Pizzaria-Webhook/1.0',
+      'X-Webhook-Event': payload.event,
+      'X-Webhook-Timestamp': payload.timestamp,
+    };
+
+    if (config.secret_key) {
+      headers['X-Webhook-Signature'] = await generateSignature(payloadString, config.secret_key);
+    }
+
+    const response = await fetch(config.endpoint_url, {
+      method: 'POST',
+      headers,
+      body: payloadString,
+      signal: AbortSignal.timeout(10000) // Timeout de 10 segundos
+    });
+
+    if (!response.ok) {
+      console.error(`Webhook failed: ${response.status} - ${await response.text()}`);
+      return false;
+    }
+
+    console.log(`Webhook sent successfully to ${config.endpoint_url}`);
+    return true;
+  } catch (error) {
+    console.error('Error sending webhook:', error);
+    return false;
+  }
+};
+
+// Função para registrar tentativa de webhook
+const logWebhookAttempt = async (
+  supabaseClient: any,
+  configId: string,
+  event: string,
+  success: boolean,
+  errorMessage?: string
+) => {
+  try {
+    await supabaseClient.from('webhook_logs').insert([{
+      config_id: configId,
+      event,
+      success,
+      error_message: errorMessage,
+    }]);
+  } catch (error) {
+    console.error('Error logging webhook attempt:', error);
+  }
+};
+
+// Função principal para processar webhook
+const processWebhook = async (supabaseClient: any, event: string, reserva: Reserva | Reserva[]): Promise<void> => {
+  try {
+    const { data: config, error } = await supabaseClient
+      .from('webhook_config')
+      .select('*')
+      .eq('enabled', true)
+      .limit(1);
+
+    if (error || !config || config.length === 0) {
+      console.log('No active webhook configuration found.');
+      return;
+    }
+
+    const webhookConfig = config[0] as WebhookConfig;
+
+    if (!webhookConfig.events.includes(event)) {
+      console.log(`Event ${event} not configured for webhook.`);
+      return;
+    }
+
+    const reservas = Array.isArray(reserva) ? reserva : [reserva];
+    if (reservas.length === 0) return;
+    
+    const primeiraReserva = reservas[0];
+
+    const payload: WebhookPayload = {
+      event,
+      timestamp: new Date().toISOString(),
+      data: {
+        reservas: reservas,
+        cliente: {
+          nome: primeiraReserva.nome_cliente,
+          telefone: primeiraReserva.telefone_cliente,
+        },
+        mesas: reservas.map(r => r.status === 'cancelada' ? r.id_mesa_historico : r.id_mesa),
+        total_mesas: reservas.length,
+        data_reserva: primeiraReserva.data_reserva,
+        horario_reserva: primeiraReserva.horario_reserva,
+        observacoes: primeiraReserva.observacoes,
+      },
+    };
+
+    const success = await sendWebhook(webhookConfig, payload);
+    await logWebhookAttempt(
+      supabaseClient,
+      webhookConfig.id,
+      event,
+      success,
+      success ? undefined : 'Failed to send webhook'
+    );
+
+  } catch (error) {
+    console.error('Error processing webhook:', error);
+  }
+};
+
+// --- Fim da Lógica de Webhook ---
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -14,12 +184,12 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
 
+  try {
     const url = new URL(req.url);
     let path = url.pathname;
     if (path.startsWith('/functions/v1/reservas-api')) {
@@ -174,6 +344,9 @@ Deno.serve(async (req) => {
         .select();
       if (errorCriar) throw errorCriar;
 
+      // Dispara o webhook sem bloquear a resposta
+      processWebhook(supabaseClient, WEBHOOK_EVENTS.RESERVA_CRIADA, novasReservas);
+
       return new Response(JSON.stringify({
         message: 'Reservas criadas com sucesso',
         reservas: novasReservas
@@ -207,6 +380,9 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Dispara o webhook sem bloquear a resposta
+      processWebhook(supabaseClient, WEBHOOK_EVENTS.RESERVA_ATUALIZADA, reservaAtualizada[0]);
+
       return new Response(JSON.stringify({
         message: 'Reserva atualizada com sucesso',
         reserva: reservaAtualizada[0]
@@ -218,15 +394,15 @@ Deno.serve(async (req) => {
     // DELETE /reservas/:id
     if (method === 'DELETE' && path.startsWith('/reservas/')) {
       const reservaId = path.split('/')[2];
-      const { data: reservaCancelada, error } = await supabaseClient
+
+      const { data: reservaExistente, error: fetchError } = await supabaseClient
         .from('reservas')
-        .update({ status: 'cancelada' })
+        .select('id, id_mesa, status')
         .eq('id', reservaId)
         .in('status', STATUS_ATIVOS)
-        .select();
-      if (error) throw error;
+        .single();
 
-      if (!reservaCancelada || reservaCancelada.length === 0) {
+      if (fetchError || !reservaExistente) {
         return new Response(JSON.stringify({
           success: false,
           status_code_real: 404,
@@ -236,10 +412,26 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
+      
+      const { data: reservaCancelada, error: updateError } = await supabaseClient
+        .from('reservas')
+        .update({
+          status: 'cancelada',
+          id_mesa_historico: reservaExistente.id_mesa,
+          id_mesa: null,
+        })
+        .eq('id', reservaId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      // Dispara o webhook sem bloquear a resposta
+      processWebhook(supabaseClient, WEBHOOK_EVENTS.RESERVA_CANCELADA, reservaCancelada);
 
       return new Response(JSON.stringify({
         message: 'Reserva cancelada com sucesso',
-        reserva: reservaCancelada[0]
+        reserva: reservaCancelada
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -249,7 +441,7 @@ Deno.serve(async (req) => {
     if (method === 'GET' && path === '/status') {
       return new Response(JSON.stringify({
         status: 'online',
-        api_version: '1.1.0'
+        api_version: '1.2.0' // Versão incrementada
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
