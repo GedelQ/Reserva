@@ -110,6 +110,7 @@ function App() {
 
   const [showConfirmCancelModal, setShowConfirmCancelModal] = useState(false);
   const [reservaToCancel, setReservaToCancel] = useState<Reserva | null>(null);
+  const [isCanceling, setIsCanceling] = useState(false);
 
   const handleCancelReservation = (reserva: Reserva) => {
     setReservaToCancel(reserva);
@@ -124,6 +125,7 @@ function App() {
 
   const confirmCancelReservation = async () => {
     if (!reservaToCancel) return;
+    setIsCanceling(true);
 
     try {
       const reservasDoCliente = await buscarReservasDoCliente(
@@ -147,6 +149,8 @@ function App() {
       setMapaMessage({ type: 'error', text: 'Erro ao cancelar reservas. Tente novamente.' });
       setReservaToCancel(null);
       setShowConfirmCancelModal(false);
+    } finally {
+      setIsCanceling(false);
     }
   };
 
@@ -240,6 +244,7 @@ function App() {
           onCancel={cancelCancelReservation}
           confirmText="Sim, Cancelar"
           cancelText="Não, Manter"
+          isConfirming={isCanceling}
         />
       )}
     </div>
