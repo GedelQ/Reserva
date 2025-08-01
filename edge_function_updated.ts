@@ -28,6 +28,7 @@ interface WebhookPayload {
   event: string;
   timestamp: string;
   data: {
+    source: 'api' | 'interface';
     reservas: Reserva[];
     cliente?: {
       nome: string;
@@ -141,6 +142,7 @@ const processWebhook = async (supabaseClient: any, event: string, reserva: Reser
       event,
       timestamp: new Date().toISOString(),
       data: {
+        source: 'api',
         reservas: reservas,
         cliente: {
           nome: primeiraReserva.nome_cliente,

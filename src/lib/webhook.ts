@@ -13,7 +13,8 @@ interface WebhookPayload {
   event: string
   timestamp: string
   data: {
-    reservas: Reserva[]
+    source: 'api' | 'interface',
+    reservas: Reserva[];
     cliente?: {
       nome: string
       telefone: string
@@ -134,6 +135,7 @@ export const processWebhook = async (event: string, reserva: Reserva | Reserva[]
       event,
       timestamp: new Date().toISOString(),
       data: {
+        source: 'interface',
         reservas: reservas,
         cliente: {
           nome: primeiraReserva.nome_cliente,
