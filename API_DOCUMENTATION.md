@@ -1,164 +1,193 @@
-# 🍕 API de Reservas da Pizzaria
+# 🍕 API de Reservas da Pizzaria v1.2
 
 ## 📋 Visão Geral
 
-API REST para gerenciamento de reservas de mesas, clientes e configurações do sistema.
+API REST para gerenciamento de reservas. Esta versão introduz um **formato de resposta em envelope**, onde todas as respostas, incluindo erros, retornam um status HTTP `200 OK`. O sucesso da operação deve ser verificado pelo campo `success` no corpo do JSON.
 
 **Base URL:** `https://[seu-projeto].supabase.co/functions/v1/reservas-api`
 
 ## 🔑 Autenticação
 
-A API utiliza a chave de serviço (`service_role`) ou a chave anônima (`anon`) do Supabase, dependendo do nível de acesso necessário. A chave deve ser enviada no header de autorização:
+A chave de API do Supabase deve ser enviada no header:
+`Authorization: Bearer [SUPABASE_KEY]`
 
+---
+
+## 📦 Formato da Resposta (Envelope)
+
+Todas as respostas da API seguem este padrão:
+
+**Sucesso:**
+```json
+{
+  "success": true,
+  "data": { ... } // Payload específico do endpoint
+}
 ```
-Authorization: Bearer [SUPABASE_KEY]
+
+**Erro:**
+```json
+{
+  "success": false,
+  "error": {
+    "code": 404, // Código de erro original
+    "message": "Reserva não encontrada"
+  }
+}
 ```
 
-## 📦 Modelos de Dados (Schema do Banco)
+---
 
-Esta seção detalha as tabelas do banco de dados que a API utiliza.
+## 🛠️ Endpoints
 
-### `mesas`
-Armazena informações sobre cada mesa do restaurante.
+### 1. Consultar Disponibilidade
+**GET** `/disponibilidade?data_reserva=YYYY-MM-DD`
 
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único da mesa (PK) |
-| `numero_mesa` | `integer` | Número de identificação da mesa |
-| `capacidade` | `integer` | Quantidade de pessoas que a mesa comporta |
-| `fileira` | `integer` | Localização da mesa (número da fileira) |
-| `disponivel` | `boolean` | `true` se a mesa está disponível para reserva |
-| `created_at` | `timestamptz` | Data e hora de criação do registro |
+#### Exemplo de Resposta de Sucesso:
+```json
+{
+  "success": true,
+  "data": {
+    "data_consulta": "2025-12-25",
+    "total_mesas_reservadas": 15,
+    "total_mesas_disponiveis": 15
+  }
+}
+```
 
-### `reservas`
-Gerencia as reservas feitas pelos clientes.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único da reserva (PK) |
-| `id_mesa` | `integer` | Número da mesa reservada (de 1 a 98) |
-| `data_reserva` | `date` | Data para a qual a reserva foi feita |
-| `horario_reserva` | `time` | Horário da reserva |
-| `nome_cliente` | `text` | Nome do cliente que fez a reserva |
-| `telefone_cliente` | `text` | Telefone do cliente (opcional) |
-| `observacoes` | `text` | Observações adicionais (opcional) |
-| `status` | `text` | Status da reserva (`ativa`, `cancelada`, `finalizada`) |
-| `created_at` | `timestamptz` | Data e hora de criação do registro |
-
-### `profiles`
-Armazena dados de perfis de usuários, estendendo a tabela `auth.users`.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único do perfil (PK, FK para `auth.users`) |
-| `full_name` | `text` | Nome completo do usuário (opcional) |
-| `avatar_url` | `text` | URL do avatar do usuário (opcional) |
-| `created_at` | `timestamptz` | Data e hora de criação do perfil |
-
-### `users`
-Tabela para usuários personalizados da aplicação.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único do usuário (PK) |
-| `email` | `text` | Endereço de e-mail único do usuário |
-| `created_at` | `timestamptz` | Data e hora de criação do usuário |
-
-### `webhook_config`
-Configurações para os webhooks que enviam notificações de eventos.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único da configuração (PK) |
-| `endpoint_url` | `text` | URL para onde o webhook será enviado |
-| `enabled` | `boolean` | `true` se o webhook está ativo |
-| `secret_key` | `text` | Chave secreta para validar o payload (opcional) |
-| `events` | `ARRAY` | Lista de eventos que acionam o webhook (ex: `reserva_criada`) |
-| `created_at` | `timestamptz` | Data e hora de criação da configuração |
-| `updated_at` | `timestamptz` | Data e hora da última atualização |
-
-### `webhook_logs`
-Registros de tentativas de envio de webhooks.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único do log (PK) |
-| `config_id` | `uuid` | ID da configuração de webhook associada (FK) |
-| `event` | `text` | Evento que disparou o webhook |
-| `success` | `boolean` | `true` se o envio foi bem-sucedido |
-| `error_message` | `text` | Mensagem de erro em caso de falha (opcional) |
-| `created_at` | `timestamptz` | Data e hora de criação do log |
-
-## 🛠️ Endpoints (Exemplos com base na tabela `reservas`)
-
-Os endpoints abaixo são exemplos de como a API pode ser usada para interagir com a tabela `reservas`.
-
-### 1. Listar Reservas
+### 2. Listar Reservas
 **GET** `/reservas`
 
-Lista reservas com filtros opcionais.
+*   **Query Params:** `data_reserva`, `status` (ex: `pendente,confirmada`)
 
-*   **Query Params:** `data_reserva`, `cliente_nome`, `cliente_telefone`, `id_mesa`
-
-#### Exemplo de Resposta:
+#### Exemplo de Resposta de Sucesso:
 ```json
 {
-  "reservas": [
-    {
-      "id": "123e4567-e89b-12d3-a456-426614174000",
-      "created_at": "2025-07-29T10:30:00Z",
-      "id_mesa": 15,
-      "data_reserva": "2025-08-10",
-      "horario_reserva": "19:00:00",
-      "observacoes": "Aniversário",
-      "status": "ativa",
-      "nome_cliente": "João da Silva",
-      "telefone_cliente": "(11) 99999-9999"
-    }
-  ]
+  "success": true,
+  "data": {
+    "reservas": [
+      { "id": "...", "status": "confirmada", ... }
+    ],
+    "total": 1
+  }
 }
 ```
 
-### 2. Criar Reserva
+### 3. Criar Reserva(s)
 **POST** `/reservas`
 
-Cria uma nova reserva.
-
 #### Body da Requisição:
 ```json
 {
-  "id_mesa": 25,
-  "data_reserva": "2025-08-11",
-  "horario_reserva": "20:30:00",
-  "nome_cliente": "Maria Santos",
-  "telefone_cliente": "(11) 88888-8888",
-  "observacoes": "Cliente VIP"
+  "nome_cliente": "Ana Beatriz",
+  "telefone_cliente": "(21) 98765-4321",
+  "data_reserva": "2025-09-15",
+  "horario_reserva": "20:00:00",
+  "mesas": [10, 11],
+  "status": "pendente"
 }
 ```
 
-### 3. Atualizar Reserva
+### 4. Atualizar Reserva
 **PUT** `/reservas/{id}`
 
-Atualiza uma reserva existente.
-
 #### Body da Requisição:
 ```json
 {
-  "horario_reserva": "21:00:00",
-  "observacoes": "Mesa para 2 pessoas"
+  "horario_reserva": "20:30:00",
+  "status": "confirmada"
 }
 ```
 
-### 4. Cancelar Reserva
+### 5. Cancelar Reserva
 **DELETE** `/reservas/{id}`
 
-Cancela uma reserva (geralmente atualizando o `status` para `cancelada`).
+Altera o status de uma reserva para `cancelada`.
 
-## 🚨 Códigos de Erro
+#### Exemplo de Resposta de Sucesso:
+```json
+{
+    "success": true,
+    "data": {
+        "message": "Reserva cancelada com sucesso",
+        "reserva": { "id": "...", "status": "cancelada", ... }
+    }
+}
+```
 
-| Código | Descrição |
-|---|---|
-| 400 | **Bad Request** - Parâmetros inválidos ou ausentes. |
-| 401 | **Unauthorized** - Chave de API ausente ou inválida. |
-| 404 | **Not Found** - Recurso não encontrado. |
-| 500 | **Internal Server Error** - Erro inesperado no servidor. |
+### 6. Status da API
+**GET** `/status`
+
+Retorna o status operacional da API.
+
+---
+
+## Webhooks (Notificações)
+
+O sistema pode enviar notificações automáticas (webhooks) para um endpoint configurado sempre que ocorrerem eventos específicos relacionados às reservas.
+
+### Tabela `webhook_config`
+
+Esta tabela armazena a configuração do endpoint que receberá as notificações.
+
+| Coluna | Tipo | Descrição |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Identificador único da configuração. |
+| `endpoint_url` | `text` | A URL para onde o webhook será enviado (POST). |
+| `enabled` | `boolean` | Se `true`, o webhook está ativo. |
+| `secret_key` | `text` | (Opcional) Chave secreta para assinar o payload. |
+| `events` | `ARRAY` | Lista de eventos que ativam o webhook. |
+
+### Tabela `webhook_logs`
+
+Registra cada tentativa de envio de um webhook.
+
+| Coluna | Tipo | Descrição |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Identificador único do log. |
+| `config_id` | `uuid` | Referência ao `id` da tabela `webhook_config`. |
+| `event` | `text` | O evento que disparou o webhook (ex: `reserva_criada`). |
+| `success` | `boolean` | Se `true`, o envio foi bem-sucedido. |
+| `error_message` | `text` | Mensagem de erro em caso de falha. |
+
+### Eventos de Webhook
+
+Os seguintes eventos podem ser configurados para disparar uma notificação:
+
+*   `reserva_criada`
+*   `reserva_atualizada`
+*   `reserva_cancelada`
+
+### Exemplo de Payload
+
+O payload enviado para o `endpoint_url` terá a seguinte estrutura:
+
+```json
+{
+  "event": "reserva_criada",
+  "timestamp": "2025-08-01T20:00:00.000Z",
+  "data": {
+    "reservas": [
+      {
+        "id": "...",
+        "id_mesa": 10,
+        "data_reserva": "2025-09-15",
+        "horario_reserva": "20:00:00",
+        "nome_cliente": "Ana Beatriz",
+        "status": "pendente",
+        "..."
+      }
+    ],
+    "cliente": {
+      "nome": "Ana Beatriz",
+      "telefone": "(21) 98765-4321"
+    },
+    "mesas": [10],
+    "total_mesas": 1
+  }
+}
+```
+
+### Assinatura de Segurança
+
+Se uma `secret_key` for fornecida na configuração, o webhook incluirá um header `X-Webhook-Signature` com uma assinatura HMAC-SHA256 do payload para verificação.

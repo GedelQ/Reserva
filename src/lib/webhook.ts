@@ -13,14 +13,15 @@ interface WebhookPayload {
   event: string
   timestamp: string
   data: {
-    reserva?: Reserva
-    reservas?: Reserva[]
-    cliente: {
+    source: 'api' | 'interface',
+    reservas: Reserva[];
+    cliente?: {
       nome: string
       telefone: string
     }
-    mesas: number[]
-    total_mesas: number
+    mesas?: (number | null)[]
+    total_mesas?: number
+    mesas_canceladas?: number[]
     [key: string]: any
   }
 }
@@ -130,34 +131,23 @@ export const processWebhook = async (event: string, reserva: Reserva | Reserva[]
     const primeiraReserva = reservas[0]
     
     // Preparar payload baseado no tipo
-    const payload: WebhookPayload = isMultiple ? {
+    const payload: WebhookPayload = {
       event,
       timestamp: new Date().toISOString(),
       data: {
+        source: 'interface',
         reservas: reservas,
         cliente: {
           nome: primeiraReserva.nome_cliente,
           telefone: primeiraReserva.telefone_cliente
         },
-        mesas: reservas.map(r => r.id_mesa),
+        mesas: reservas.map(r => r.status === 'cancelada' ? r.id_mesa_historico : r.id_mesa),
         total_mesas: reservas.length,
         data_reserva: primeiraReserva.data_reserva,
         horario_reserva: primeiraReserva.horario_reserva,
         observacoes: primeiraReserva.observacoes
       }
-    } : {
-      event,
-      timestamp: new Date().toISOString(),
-      data: {
-        reserva: primeiraReserva,
-        cliente: {
-          nome: primeiraReserva.nome_cliente,
-          telefone: primeiraReserva.telefone_cliente
-        },
-        mesas: [primeiraReserva.id_mesa],
-        total_mesas: 1
-      }
-    }
+    };
 
     // Enviar webhook
     const success = await sendWebhook(webhookConfig, payload)

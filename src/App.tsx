@@ -21,10 +21,12 @@ function App() {
     reservas,
     loading,
     criarReserva,
+    criarMultiplasReservas,
     modificarReserva,
-    cancelarReservasDoCliente,
+    cancelarMultiplasReservas, // Importar a nova função
     buscarReservasDoCliente,
     atualizarReserva,
+    atualizarReservasDoCliente,
   } = useReservas(dataFiltro)
 
   useEffect(() => {
@@ -59,8 +61,6 @@ function App() {
   }, [buscarReservasDoCliente, dataFiltro]);
 
   const handleMesaClick = useCallback(async (mesa: Mesa) => {
-    // Se a mesa tem uma reserva e não estamos no modo de edição, e a reserva NÃO está cancelada,
-    // então inicia o modo de edição para essa reserva.
     if (mesa.reserva && !reservaEmEdicao && mesa.reserva.status !== 'cancelada') {
       iniciarModoEdicao(mesa.reserva);
       return;
@@ -69,7 +69,6 @@ function App() {
     setMesasSelecionadas(prev => {
       const isSelected = prev.some(m => m.id === mesa.id);
       if (isSelected) {
-        
         return prev.filter(m => m.id !== mesa.id);
       } else {
         const isOcupadaPorOutro = mesa.reserva && 
@@ -97,10 +96,11 @@ function App() {
       if (reservaEmEdicao) {
         await modificarReserva(reservaEmEdicao, mesasSelecionadas, reservaData);
       } else {
-        const promises = mesasSelecionadas.map(mesa => 
-          criarReserva({ ...reservaData, id_mesa: mesa.id })
-        );
-        await Promise.all(promises);
+        if (mesasSelecionadas.length > 1) {
+          await criarMultiplasReservas(reservaData, mesasSelecionadas);
+        } else if (mesasSelecionadas.length === 1) {
+          await criarReserva({ ...reservaData, id_mesa: mesasSelecionadas[0].id });
+        }
       }
       setShowModal(false);
     } catch (error) {
@@ -110,6 +110,7 @@ function App() {
 
   const [showConfirmCancelModal, setShowConfirmCancelModal] = useState(false);
   const [reservaToCancel, setReservaToCancel] = useState<Reserva | null>(null);
+  const [isCanceling, setIsCanceling] = useState(false);
 
   const handleCancelReservation = (reserva: Reserva) => {
     setReservaToCancel(reserva);
@@ -124,13 +125,19 @@ function App() {
 
   const confirmCancelReservation = async () => {
     if (!reservaToCancel) return;
+    setIsCanceling(true);
 
     try {
-      await cancelarReservasDoCliente(
+      const reservasDoCliente = await buscarReservasDoCliente(
         reservaToCancel.nome_cliente,
         reservaToCancel.telefone_cliente,
         reservaToCancel.data_reserva
       );
+
+      if (reservasDoCliente.length > 0) {
+        await cancelarMultiplasReservas(reservasDoCliente);
+      }
+
       setReservaEmEdicao(null);
       setMesasSelecionadas([]);
       setShowModal(false);
@@ -142,6 +149,8 @@ function App() {
       setMapaMessage({ type: 'error', text: 'Erro ao cancelar reservas. Tente novamente.' });
       setReservaToCancel(null);
       setShowConfirmCancelModal(false);
+    } finally {
+      setIsCanceling(false);
     }
   };
 
@@ -194,6 +203,8 @@ function App() {
             dataFiltro={dataFiltro} 
             onEditMesas={iniciarModoEdicao}
             atualizarReserva={atualizarReserva}
+            atualizarReservasDoCliente={atualizarReservasDoCliente}
+            onCancelReservation={handleCancelReservation}
           />
         ) : (
           <MapaMesas
@@ -233,6 +244,7 @@ function App() {
           onCancel={cancelCancelReservation}
           confirmText="Sim, Cancelar"
           cancelText="Não, Manter"
+          isConfirming={isCanceling}
         />
       )}
     </div>
@@ -240,6 +252,8 @@ function App() {
 }
 
 export default App
+
+
 
 
 
