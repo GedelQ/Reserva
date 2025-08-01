@@ -1,158 +1,134 @@
-# 🍕 API de Reservas da Pizzaria
+# 🍕 API de Reservas da Pizzaria v1.1
 
 ## 📋 Visão Geral
 
-API REST para gerenciamento de reservas de mesas, clientes e configurações do sistema.
+API REST para gerenciamento de reservas de mesas. Esta versão introduz o gerenciamento de status de reserva (`pendente`, `confirmada`, `cancelada`).
 
 **Base URL:** `https://[seu-projeto].supabase.co/functions/v1/reservas-api`
 
 ## 🔑 Autenticação
 
-A API utiliza a chave de serviço (`service_role`) ou a chave anônima (`anon`) do Supabase, dependendo do nível de acesso necessário. A chave deve ser enviada no header de autorização:
+A chave de serviço (`service_role`) ou anônima (`anon`) do Supabase deve ser enviada no header:
 
 ```
 Authorization: Bearer [SUPABASE_KEY]
 ```
 
-## 📦 Modelos de Dados (Schema do Banco)
-
-Esta seção detalha as tabelas do banco de dados que a API utiliza.
-
-### `mesas`
-Armazena informações sobre cada mesa do restaurante.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único da mesa (PK) |
-| `numero_mesa` | `integer` | Número de identificação da mesa |
-| `capacidade` | `integer` | Quantidade de pessoas que a mesa comporta |
-| `fileira` | `integer` | Localização da mesa (número da fileira) |
-| `disponivel` | `boolean` | `true` se a mesa está disponível para reserva |
-| `created_at` | `timestamptz` | Data e hora de criação do registro |
-
-### `reservas`
-Gerencia as reservas feitas pelos clientes.
+## 📦 Modelo de Dados: `reservas`
 
 | Coluna | Tipo | Descrição |
 |---|---|---|
 | `id` | `uuid` | Identificador único da reserva (PK) |
-| `id_mesa` | `integer` | Número da mesa reservada (de 1 a 98) |
-| `data_reserva` | `date` | Data para a qual a reserva foi feita |
+| `id_mesa` | `integer` | Número da mesa reservada |
+| `data_reserva` | `date` | Data da reserva |
 | `horario_reserva` | `time` | Horário da reserva |
-| `nome_cliente` | `text` | Nome do cliente que fez a reserva |
-| `telefone_cliente` | `text` | Telefone do cliente (opcional) |
+| `nome_cliente` | `text` | Nome do cliente |
+| `telefone_cliente` | `text` | Telefone do cliente |
 | `observacoes` | `text` | Observações adicionais (opcional) |
-| `status` | `text` | Status da reserva (`ativa`, `cancelada`, `finalizada`) |
-| `created_at` | `timestamptz` | Data e hora de criação do registro |
+| `status` | `text` | Status: `pendente`, `confirmada`, `cancelada` |
+| `created_at` | `timestamptz` | Data e hora de criação |
 
-### `profiles`
-Armazena dados de perfis de usuários, estendendo a tabela `auth.users`.
+---
 
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único do perfil (PK, FK para `auth.users`) |
-| `full_name` | `text` | Nome completo do usuário (opcional) |
-| `avatar_url` | `text` | URL do avatar do usuário (opcional) |
-| `created_at` | `timestamptz` | Data e hora de criação do perfil |
+## 🛠️ Endpoints
 
-### `users`
-Tabela para usuários personalizados da aplicação.
+### 1. Consultar Disponibilidade
+**GET** `/disponibilidade`
 
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único do usuário (PK) |
-| `email` | `text` | Endereço de e-mail único do usuário |
-| `created_at` | `timestamptz` | Data e hora de criação do usuário |
+Verifica a disponibilidade de mesas para uma data específica.
 
-### `webhook_config`
-Configurações para os webhooks que enviam notificações de eventos.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único da configuração (PK) |
-| `endpoint_url` | `text` | URL para onde o webhook será enviado |
-| `enabled` | `boolean` | `true` se o webhook está ativo |
-| `secret_key` | `text` | Chave secreta para validar o payload (opcional) |
-| `events` | `ARRAY` | Lista de eventos que acionam o webhook (ex: `reserva_criada`) |
-| `created_at` | `timestamptz` | Data e hora de criação da configuração |
-| `updated_at` | `timestamptz` | Data e hora da última atualização |
-
-### `webhook_logs`
-Registros de tentativas de envio de webhooks.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | `uuid` | Identificador único do log (PK) |
-| `config_id` | `uuid` | ID da configuração de webhook associada (FK) |
-| `event` | `text` | Evento que disparou o webhook |
-| `success` | `boolean` | `true` se o envio foi bem-sucedido |
-| `error_message` | `text` | Mensagem de erro em caso de falha (opcional) |
-| `created_at` | `timestamptz` | Data e hora de criação do log |
-
-## 🛠️ Endpoints (Exemplos com base na tabela `reservas`)
-
-Os endpoints abaixo são exemplos de como a API pode ser usada para interagir com a tabela `reservas`.
-
-### 1. Listar Reservas
-**GET** `/reservas`
-
-Lista reservas com filtros opcionais.
-
-*   **Query Params:** `data_reserva`, `cliente_nome`, `cliente_telefone`, `id_mesa`
+*   **Query Params:**
+    *   `data_reserva` (obrigatório): Data no formato `YYYY-MM-DD`.
 
 #### Exemplo de Resposta:
 ```json
 {
+  "data_consulta": "2025-12-25",
+  "limite_mesas_por_dia": 30,
+  "total_mesas_reservadas": 15,
+  "total_mesas_disponiveis": 15,
+  "mesas_disponiveis_lista": [3, 4, ...],
+  "horarios_disponiveis": ["18:00", "18:30", ...]
+}
+```
+
+### 2. Listar Reservas
+**GET** `/reservas`
+
+Lista reservas com filtros. Por padrão, retorna apenas reservas com status `pendente` ou `confirmada`.
+
+*   **Query Params:**
+    *   `data_reserva`: `YYYY-MM-DD`.
+    *   `cliente_nome`: Nome parcial do cliente.
+    *   `cliente_telefone`: Número parcial do telefone.
+    *   `mesa`: Número da mesa.
+    *   `status`: Filtra por um ou mais status, separados por vírgula (ex: `status=pendente,cancelada`).
+
+### 3. Criar Reserva(s)
+**POST** `/reservas`
+
+Cria uma ou mais reservas para um cliente.
+
+#### Body da Requisição:
+```json
+{
+  "nome_cliente": "Ana Beatriz",
+  "telefone_cliente": "(21) 98765-4321",
+  "data_reserva": "2025-09-15",
+  "horario_reserva": "20:00:00",
+  "mesas": [10, 11],
+  "observacoes": "Próximo à janela, se possível.",
+  "status": "pendente" // Opcional, padrão: 'pendente'. Aceita 'confirmada'.
+}
+```
+
+#### Resposta de Sucesso (201):
+```json
+{
+  "message": "Reservas criadas com sucesso",
   "reservas": [
-    {
-      "id": "123e4567-e89b-12d3-a456-426614174000",
-      "created_at": "2025-07-29T10:30:00Z",
-      "id_mesa": 15,
-      "data_reserva": "2025-08-10",
-      "horario_reserva": "19:00:00",
-      "observacoes": "Aniversário",
-      "status": "ativa",
-      "nome_cliente": "João da Silva",
-      "telefone_cliente": "(11) 99999-9999"
-    }
+    { "id": "...", "id_mesa": 10, "status": "pendente", ... },
+    { "id": "...", "id_mesa": 11, "status": "pendente", ... }
   ]
 }
 ```
 
-### 2. Criar Reserva
-**POST** `/reservas`
-
-Cria uma nova reserva.
-
-#### Body da Requisição:
-```json
-{
-  "id_mesa": 25,
-  "data_reserva": "2025-08-11",
-  "horario_reserva": "20:30:00",
-  "nome_cliente": "Maria Santos",
-  "telefone_cliente": "(11) 88888-8888",
-  "observacoes": "Cliente VIP"
-}
-```
-
-### 3. Atualizar Reserva
+### 4. Atualizar Reserva
 **PUT** `/reservas/{id}`
 
-Atualiza uma reserva existente.
+Atualiza os dados de uma reserva específica, incluindo seu status.
+
+*   **Path Param:** `id` da reserva.
 
 #### Body da Requisição:
 ```json
 {
-  "horario_reserva": "21:00:00",
-  "observacoes": "Mesa para 2 pessoas"
+  "horario_reserva": "20:30:00",
+  "status": "confirmada"
 }
 ```
 
-### 4. Cancelar Reserva
+### 5. Cancelar Reserva
 **DELETE** `/reservas/{id}`
 
-Cancela uma reserva (geralmente atualizando o `status` para `cancelada`).
+Altera o status de uma reserva para `cancelada`. A reserva não é permanentemente removida.
+
+*   **Path Param:** `id` da reserva.
+
+#### Resposta de Sucesso (200):
+```json
+{
+  "message": "Reserva cancelada com sucesso",
+  "reserva": { "id": "...", "status": "cancelada", ... }
+}
+```
+
+### 6. Status da API
+**GET** `/status`
+
+Retorna o status operacional da API.
+
+---
 
 ## 🚨 Códigos de Erro
 
@@ -160,5 +136,6 @@ Cancela uma reserva (geralmente atualizando o `status` para `cancelada`).
 |---|---|
 | 400 | **Bad Request** - Parâmetros inválidos ou ausentes. |
 | 401 | **Unauthorized** - Chave de API ausente ou inválida. |
-| 404 | **Not Found** - Recurso não encontrado. |
+| 404 | **Not Found** - Recurso ou reserva não encontrado. |
+| 409 | **Conflict** - Conflito de reserva (ex: mesa já ocupada, limite diário excedido). |
 | 500 | **Internal Server Error** - Erro inesperado no servidor. |
