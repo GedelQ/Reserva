@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -9,6 +8,30 @@ const corsHeaders = {
 
 const LIMITE_MESAS = 30;
 const STATUS_ATIVOS = ['pendente', 'confirmada'];
+
+// Helper para criar respostas padronizadas
+const createJsonResponse = (body: object, status = 200) => {
+  return new Response(JSON.stringify(body), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    status: status // Manteremos 200 para todos, mas o parâmetro existe para flexibilidade
+  });
+};
+
+const successResponse = (data: object) => {
+    return createJsonResponse({ success: true, data });
+}
+
+const errorResponse = (message: string, errorCode = 400, details?: object) => {
+    return createJsonResponse({ 
+        success: false, 
+        error: { 
+            code: errorCode, 
+            message,
+            ...(details && { details })
+        }
+    }, 200); // Sempre retorna 200 OK
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -35,13 +58,12 @@ Deno.serve(async (req) => {
     }
 
     const method = req.method;
-    console.log(`Request: ${method} ${path}`);
 
     // GET /disponibilidade
     if (method === 'GET' && path === '/disponibilidade') {
       const dataReserva = url.searchParams.get('data_reserva');
       if (!dataReserva) {
-        return new Response(JSON.stringify({ error: 'Parâmetro data_reserva é obrigatório (YYYY-MM-DD)' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return errorResponse('Parâmetro data_reserva é obrigatório (YYYY-MM-DD)', 400);
       }
 
       const { data: reservasExistentes, error } = await supabaseClient
@@ -55,38 +77,28 @@ Deno.serve(async (req) => {
       const mesasOcupadas = reservasExistentes?.map(r => r.id_mesa) || [];
       const totalMesasReservadas = new Set(mesasOcupadas).size;
       const mesasDisponiveisCount = LIMITE_MESAS - totalMesasReservadas;
-      
       const todasMesas = Array.from({ length: 98 }, (_, i) => i + 1);
       const mesasLivres = todasMesas.filter(mesa => !mesasOcupadas.includes(mesa));
 
-      const response = {
+      return successResponse({
         data_consulta: dataReserva,
         limite_mesas_por_dia: LIMITE_MESAS,
         total_mesas_reservadas: totalMesasReservadas,
         total_mesas_disponiveis: mesasDisponiveisCount,
         mesas_disponiveis_lista: mesasLivres,
         horarios_disponiveis: ['18:00', '18:30', '19:00', '19:30', '20:00']
-      };
-      return new Response(JSON.stringify(response), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      });
     }
 
     // GET /reservas
     if (method === 'GET' && path === '/reservas') {
         const dataReserva = url.searchParams.get('data_reserva');
-        const clienteNome = url.searchParams.get('cliente_nome');
-        const clienteTelefone = url.searchParams.get('cliente_telefone');
-        const mesa = url.searchParams.get('mesa');
         const statusParam = url.searchParams.get('status');
-
         let query = supabaseClient.from('reservas').select('*').order('horario_reserva', { ascending: true });
 
         if (dataReserva) query = query.eq('data_reserva', dataReserva);
-        if (clienteNome) query = query.ilike('nome_cliente', `%${clienteNome}%`);
-        if (clienteTelefone) query = query.like('telefone_cliente', `%${clienteTelefone.replace(/\D/g, '')}%`);
-        if (mesa) query = query.eq('id_mesa', parseInt(mesa));
         if (statusParam) {
-            const statusList = statusParam.split(',').map(s => s.trim());
-            query = query.in('status', statusList);
+            query = query.in('status', statusParam.split(',').map(s => s.trim()));
         } else {
             query = query.in('status', STATUS_ATIVOS);
         }
@@ -94,92 +106,69 @@ Deno.serve(async (req) => {
         const { data: reservas, error } = await query;
         if (error) throw error;
 
-        return new Response(JSON.stringify({ reservas: reservas || [], total: reservas?.length || 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return successResponse({ reservas: reservas || [], total: reservas?.length || 0 });
     }
 
     // POST /reservas
     if (method === 'POST' && path === '/reservas') {
         const body = await req.json();
-        const { nome_cliente, telefone_cliente, data_reserva, horario_reserva, mesas, observacoes, status } = body;
+        const { nome_cliente, telefone_cliente, data_reserva, horario_reserva, mesas, status } = body;
 
         if (!nome_cliente || !telefone_cliente || !data_reserva || !horario_reserva || !mesas || !Array.isArray(mesas) || mesas.length === 0) {
-            return new Response(JSON.stringify({ error: 'Campos obrigatórios: nome_cliente, telefone_cliente, data_reserva, horario_reserva, e um array de mesas.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            return errorResponse('Campos obrigatórios: nome_cliente, telefone_cliente, data_reserva, horario_reserva, e um array de mesas.', 400);
         }
 
-        const { data: reservasExistentes, error: errorCount } = await supabaseClient.from('reservas').select('id').eq('data_reserva', data_reserva).in('status', STATUS_ATIVOS);
+        const { data: countData, error: errorCount } = await supabaseClient.from('reservas').select('id', { count: 'exact' }).eq('data_reserva', data_reserva).in('status', STATUS_ATIVOS);
         if (errorCount) throw errorCount;
 
-        if ((reservasExistentes?.length || 0) + mesas.length > LIMITE_MESAS) {
-            return new Response(JSON.stringify({ error: `Limite de ${LIMITE_MESAS} mesas por dia seria ultrapassado.` }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        if ((countData?.length || 0) + mesas.length > LIMITE_MESAS) {
+            return errorResponse(`Limite de ${LIMITE_MESAS} mesas por dia seria ultrapassado.`, 409);
         }
 
         const { data: mesasOcupadas, error: errorMesas } = await supabaseClient.from('reservas').select('id_mesa').eq('data_reserva', data_reserva).in('status', STATUS_ATIVOS).in('id_mesa', mesas);
         if (errorMesas) throw errorMesas;
 
         if (mesasOcupadas && mesasOcupadas.length > 0) {
-            return new Response(JSON.stringify({ error: `Mesas já ocupadas: ${mesasOcupadas.map(m => m.id_mesa).join(', ')}` }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            return errorResponse(`Mesas já ocupadas: ${mesasOcupadas.map(m => m.id_mesa).join(', ')}`, 409);
         }
 
-        const reservasParaCriar = mesas.map(mesaId => ({
-            id_mesa: mesaId,
-            nome_cliente,
-            telefone_cliente,
-            data_reserva,
-            horario_reserva,
-            observacoes: observacoes || '',
-            status: ['pendente', 'confirmada'].includes(status) ? status : 'pendente'
-        }));
-
+        const reservasParaCriar = mesas.map(mesaId => ({ ...body, id_mesa: mesaId, status: ['pendente', 'confirmada'].includes(status) ? status : 'pendente' }));
         const { data: novasReservas, error: errorCriar } = await supabaseClient.from('reservas').insert(reservasParaCriar).select();
         if (errorCriar) throw errorCriar;
 
-        return new Response(JSON.stringify({ message: 'Reservas criadas com sucesso', reservas: novasReservas }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return successResponse({ message: 'Reservas criadas com sucesso', reservas: novasReservas });
     }
 
     // PUT /reservas/:id
     if (method === 'PUT' && path.startsWith('/reservas/')) {
         const reservaId = path.split('/')[2];
-        const body = await req.json();
-        
-        // Evitar que campos não permitidos sejam atualizados diretamente
-        const { id, created_at, ...updateData } = body;
-
-        const { data: reservaAtualizada, error } = await supabaseClient.from('reservas').update(updateData).eq('id', reservaId).select();
+        const { id, created_at, ...updateData } = await req.json();
+        const { data, error } = await supabaseClient.from('reservas').update(updateData).eq('id', reservaId).select();
         if (error) throw error;
+        if (!data || data.length === 0) return errorResponse('Reserva não encontrada', 404);
 
-        if (!reservaAtualizada || reservaAtualizada.length === 0) {
-            return new Response(JSON.stringify({ error: 'Reserva não encontrada' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        }
-        return new Response(JSON.stringify({ message: 'Reserva atualizada com sucesso', reserva: reservaAtualizada[0] }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return successResponse({ message: 'Reserva atualizada com sucesso', reserva: data[0] });
     }
 
     // DELETE /reservas/:id
     if (method === 'DELETE' && path.startsWith('/reservas/')) {
         const reservaId = path.split('/')[2];
-        const { data: reservaCancelada, error } = await supabaseClient
-            .from('reservas')
-            .update({ status: 'cancelada' })
-            .eq('id', reservaId)
-            .in('status', STATUS_ATIVOS)
-            .select();
-
+        const { data, error } = await supabaseClient.from('reservas').update({ status: 'cancelada' }).eq('id', reservaId).in('status', STATUS_ATIVOS).select();
         if (error) throw error;
+        if (!data || data.length === 0) return errorResponse('Reserva não encontrada ou já estava cancelada', 404);
 
-        if (!reservaCancelada || reservaCancelada.length === 0) {
-            return new Response(JSON.stringify({ error: 'Reserva não encontrada ou já estava cancelada' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        }
-        return new Response(JSON.stringify({ message: 'Reserva cancelada com sucesso', reserva: reservaCancelada[0] }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return successResponse({ message: 'Reserva cancelada com sucesso', reserva: data[0] });
     }
 
     // GET /status
     if (method === 'GET' && path === '/status') {
-        return new Response(JSON.stringify({ status: 'online', api_version: '1.1.0' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return successResponse({ status: 'online', api_version: '1.2.0' });
     }
 
-    return new Response(JSON.stringify({ error: 'Endpoint não encontrado' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return errorResponse('Endpoint não encontrado', 404);
 
   } catch (error) {
-    console.error('Erro na edge function:', error);
-    return new Response(JSON.stringify({ error: 'Erro interno do servidor', detalhes: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    console.error('Erro fatal na edge function:', error);
+    return errorResponse('Erro interno do servidor', 500, { detalhes: error.message });
   }
 });
