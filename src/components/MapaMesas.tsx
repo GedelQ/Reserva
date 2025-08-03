@@ -154,7 +154,9 @@ const MapaMesas: React.FC<MapaMesasProps> = ({
   }
 
   const mesasPorFileira = mesas.reduce((acc, mesa) => {
-    if (!acc[mesa.fileira]) acc[mesa.fileira] = [];
+    if (!acc[mesa.fileira]) {
+      acc[mesa.fileira] = [];
+    }
     acc[mesa.fileira].push(mesa);
     return acc;
   }, {} as Record<number, Mesa[]>);
