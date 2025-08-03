@@ -171,34 +171,31 @@ export const TIME_SLOTS = [
 
 // Função para gerar o layout das 98 mesas
 export const generateMesasLayout = (): MesaLayout[] => {
-  const mesas: MesaLayout[] = []
-  let mesaId = 1
+  const mesas: MesaLayout[] = [];
+  const fileirasConfig = [
+    { f: 1, m: 8, s: 1 }, { f: 2, m: 8, s: 16 }, { f: 3, m: 8, s: 17 }, { f: 4, m: 8, s: 32 },
+    { f: 5, m: 8, s: 33 }, { f: 6, m: 8, s: 48 }, { f: 7, m: 10, s: 49 }, { f: 8, m: 10, s: 68 },
+    { f: 9, m: 10, s: 69 }, { f: 10, m: 10, s: 88 }, { f: 11, m: 10, s: 89 },
+  ];
 
-  // Primeiras 6 fileiras com 8 mesas cada (48 mesas)
-  for (let fileira = 1; fileira <= 6; fileira++) {
-    for (let posicao = 1; posicao <= 8; posicao++) {
+  fileirasConfig.forEach(({ f: fileira, m: numMesas, s: startId }) => {
+    for (let i = 0; i < numMesas; i++) {
+      let mesaId;
+      if (fileira % 2 === 0) {
+        // Fileira par (decrescente)
+        mesaId = startId - i;
+      } else {
+        // Fileira ímpar (crescente)
+        mesaId = startId + i;
+      }
       mesas.push({
         id: mesaId,
         capacidade: 4, // Capacidade padrão
         fileira: fileira,
-        status: 'disponivel'
-      })
-      mesaId++
+        status: 'disponivel',
+      });
     }
-  }
+  });
 
-  // Próximas 5 fileiras com 10 mesas cada (50 mesas)
-  for (let fileira = 7; fileira <= 11; fileira++) {
-    for (let posicao = 1; posicao <= 10; posicao++) {
-      mesas.push({
-        id: mesaId,
-        capacidade: 4, // Capacidade padrão
-        fileira: fileira,
-        status: 'disponivel'
-      })
-      mesaId++
-    }
-  }
-
-  return mesas
-}
+  return mesas;
+};
