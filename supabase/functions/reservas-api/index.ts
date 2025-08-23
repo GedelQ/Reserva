@@ -150,12 +150,17 @@ Deno.serve(async (req) => {
       const clienteNome = url.searchParams.get('cliente_nome')
       const clienteTelefone = url.searchParams.get('cliente_telefone')
       const mesa = url.searchParams.get('mesa')
+      const numeroReserva = url.searchParams.get('numero_reserva')
 
       let query = supabaseClient
         .from('reservas')
         .select('*')
         .eq('status', 'ativa')
         .order('horario_reserva', { ascending: true })
+
+      if (numeroReserva) {
+        query = query.eq('numero_reserva', parseInt(numeroReserva))
+      }
 
       if (dataReserva) {
         query = query.eq('data_reserva', dataReserva)
@@ -194,7 +199,8 @@ Deno.serve(async (req) => {
             data_reserva: dataReserva,
             cliente_nome: clienteNome,
             cliente_telefone: clienteTelefone,
-            mesa: mesa
+            mesa: mesa,
+            numero_reserva: numeroReserva
           }
         }),
         { 

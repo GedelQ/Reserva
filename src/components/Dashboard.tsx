@@ -29,7 +29,7 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
   const [showModal, setShowModal] = useState(false)
   const [clienteSelecionado, setClienteSelecionado] = useState<ClienteAgrupado | null>(null)
   const [termoBusca, setTermoBusca] = useState('')
-  const [tipoBusca, setTipoBusca] = useState<'todos' | 'mesa' | 'cliente' | 'telefone'>('todos')
+  const [tipoBusca, setTipoBusca] = useState<'todos' | 'mesa' | 'cliente' | 'telefone' | 'reserva'>('todos')
 
   useEffect(() => {
     // Limpa os dados do cliente selecionado APÓS o modal fechar
@@ -68,6 +68,8 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
     const termo = termoBusca.toLowerCase().trim()
     return clientesAgrupados.filter(cliente => {
       switch (tipoBusca) {
+        case 'reserva':
+          return cliente.reservas.some(r => r.numero_reserva.toString().includes(termo));
         case 'mesa':
           const numeroMesa = parseInt(termo); return !isNaN(numeroMesa) && cliente.mesas.includes(numeroMesa)
         case 'cliente':
@@ -75,7 +77,11 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
         case 'telefone':
           return cliente.telefone_cliente.replace(/\D/g, '').includes(termo.replace(/\D/g, ''))
         default:
-          const numMesa = parseInt(termo); return (!isNaN(numMesa) && cliente.mesas.includes(numMesa)) || cliente.nome_cliente.toLowerCase().includes(termo) || cliente.telefone_cliente.replace(/\D/g, '').includes(termo.replace(/\D/g, ''))
+          const numMesa = parseInt(termo); 
+          return cliente.reservas.some(r => r.numero_reserva.toString().includes(termo)) || 
+                 (!isNaN(numMesa) && cliente.mesas.includes(numMesa)) || 
+                 cliente.nome_cliente.toLowerCase().includes(termo) || 
+                 cliente.telefone_cliente.replace(/\D/g, '').includes(termo.replace(/\D/g, ''))
       }
     })
   }, [clientesAgrupados, termoBusca, tipoBusca])
@@ -148,8 +154,8 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-semibold text-gray-800">Buscar Reservas</h3>{termoBusca && (<button onClick={limparBusca} className="text-sm text-gray-500 hover:text-red-600 transition-colors flex items-center space-x-1"><X className="w-4 h-4" /><span>Limpar busca</span></button>)}</div>
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="sm:w-48"><select value={tipoBusca} onChange={(e) => setTipoBusca(e.target.value as any)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"><option value="todos">Buscar em tudo</option><option value="mesa">Número da mesa</option><option value="cliente">Nome do cliente</option><option value="telefone">Telefone</option></select></div>
-          <div className="flex-1 relative"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" /><input type="text" value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} placeholder={tipoBusca === 'mesa' ? 'Digite o número da mesa' : tipoBusca === 'cliente' ? 'Digite o nome' : tipoBusca === 'telefone' ? 'Digite o telefone' : 'Digite para buscar...'} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm" /></div>
+          <div className="sm:w-48"><select value={tipoBusca} onChange={(e) => setTipoBusca(e.target.value as any)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"><option value="todos">Buscar em tudo</option><option value="reserva">Nº da Reserva</option><option value="mesa">Nº da mesa</option><option value="cliente">Nome do cliente</option><option value="telefone">Telefone</option></select></div>
+          <div className="flex-1 relative"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" /><input type="text" value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} placeholder={tipoBusca === 'reserva' ? 'Digite o nº da reserva' : tipoBusca === 'mesa' ? 'Digite o nº da mesa' : tipoBusca === 'cliente' ? 'Digite o nome' : tipoBusca === 'telefone' ? 'Digite o telefone' : 'Digite para buscar...'} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm" /></div>
         </div>
       </div>
 
@@ -163,7 +169,7 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center"><span className="text-red-600 font-semibold text-sm">{cliente.totalMesas}</span></div>
                     <div>
-                      <h3 className="font-medium text-gray-800">{cliente.nome_cliente}</h3>
+                      <h3 className="font-medium text-gray-800">#{cliente.reservas[0].numero_reserva} - {cliente.nome_cliente}</h3>
                       <p className="text-sm text-gray-600">{cliente.telefone_cliente}</p>
                       <p className="text-xs text-gray-500">Mesas: {cliente.mesas.join(', ')}</p>
                     </div>
