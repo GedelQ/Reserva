@@ -9,6 +9,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey)
 export interface Reserva {
   id: string
   created_at: string
+  numero_reserva: number
   id_mesa: number | null
   nome_cliente: string
   telefone_cliente: string
@@ -39,7 +40,7 @@ export interface MesaLayout {
 }
 
 // Função para buscar reservas
-export const fetchReservas = async (filters?: { data_reserva?: string; nome_cliente?: string; telefone_cliente?: string; id_mesa?: number; id?: string }) => {
+export const fetchReservas = async (filters?: { data_reserva?: string; nome_cliente?: string; telefone_cliente?: string; id_mesa?: number; id?: string, numero_reserva?: number }) => {
   try {
     let query = supabase
       .from('reservas')
@@ -62,6 +63,10 @@ export const fetchReservas = async (filters?: { data_reserva?: string; nome_clie
     
     if (filters?.id) {
       query = query.eq('id', filters.id)
+    }
+
+    if (filters?.numero_reserva) {
+      query = query.eq('numero_reserva', filters.numero_reserva)
     }
 
     const { data: reservas, error } = await query

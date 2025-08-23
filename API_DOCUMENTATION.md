@@ -58,7 +58,12 @@ Todas as respostas da API seguem este padrão:
 ### 2. Listar Reservas
 **GET** `/reservas`
 
-*   **Query Params:** `data_reserva`, `status` (ex: `pendente,confirmada`)
+*   **Query Params (Opcionais):**
+    *   `numero_reserva` (number): Filtra pela reserva com o número exato.
+    *   `data_reserva` (string): Filtra por uma data específica (formato `YYYY-MM-DD`).
+    *   `cliente_nome` (string): Busca por parte do nome do cliente.
+    *   `cliente_telefone` (string): Busca por parte do telefone do cliente.
+    *   `mesa` (number): Filtra por um número de mesa específico.
 
 #### Exemplo de Resposta de Sucesso:
 ```json
@@ -66,7 +71,13 @@ Todas as respostas da API seguem este padrão:
   "success": true,
   "data": {
     "reservas": [
-      { "id": "...", "status": "confirmada", ... }
+      {
+        "id": "...",
+        "numero_reserva": 101,
+        "status": "confirmada",
+        "nome_cliente": "João Silva",
+        "..."
+      }
     ],
     "total": 1
   }

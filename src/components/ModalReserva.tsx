@@ -86,6 +86,14 @@ const ModalReserva: React.FC<ModalReservaProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {reserva && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Número da Reserva</label>
+              <p className="text-lg font-semibold text-gray-900 bg-gray-100 px-4 py-2 rounded-lg">
+                #{reserva.numero_reserva}
+              </p>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Cliente</label>
             <input type="text" value={formData.nome_cliente} onChange={(e) => setFormData(prev => ({ ...prev, nome_cliente: e.target.value }))} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
