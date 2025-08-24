@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
       let query = supabaseClient
         .from('reservas')
         .select('*')
-        .eq('status', 'ativa')
+        .in('status', ['pendente', 'confirmada', 'cancelada'])
         .order('horario_reserva', { ascending: true })
 
       if (numeroReserva) {
