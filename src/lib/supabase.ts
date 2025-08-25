@@ -19,6 +19,7 @@ export interface Reserva {
   status: 'confirmada' | 'cancelada' | 'finalizada' | 'pendente'
   id_mesa_historico?: number | null
   isOptimistic?: boolean
+  mesas?: number[]
 }
 
 export interface Mesa {
@@ -107,6 +108,7 @@ export const searchReservas = async (filters: { data_reserva?: string; numero_re
   try {
     const { data, error } = await supabase.functions.invoke('reservas-api', {
       method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
       params: filters,
     });
 

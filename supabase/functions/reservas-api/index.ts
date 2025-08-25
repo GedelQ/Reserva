@@ -316,10 +316,20 @@ Deno.serve(async (req) => {
         });
       }
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      if (data && data.length > 0) {
+        const primeiraReserva = data[0];
+        const mesas = data.map(r => r.id_mesa);
+        const reservaAgrupada = { ...primeiraReserva, mesas };
+        return new Response(JSON.stringify(reservaAgrupada), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } else {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     return new Response(JSON.stringify({
