@@ -99,8 +99,28 @@ Todas as respostas da API seguem este padrão:
 }
 ```
 
-### 4. Atualizar Reserva
+### 4. Modificar Mesas da Reserva (por Grupo)
+**POST** `/reservas/modificar-mesas`
+
+Modifica todo o conjunto de mesas de um cliente em uma data, usando o ID de qualquer reserva do grupo como âncora (enviado no corpo da requisição).
+
+#### Body da Requisição:
+```json
+{
+  "id_ancora": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "novas_mesas": [10, 12, 14],
+  "dados_reserva": {
+    "horario_reserva": "20:30:00",
+    "observacoes": "Cliente pediu urgência."
+  }
+}
+```
+
+
+### 5. Atualizar Reserva Individual
 **PUT** `/reservas/{id}`
+
+Atualiza os dados de uma única reserva pelo seu ID.
 
 #### Body da Requisição:
 ```json
@@ -110,7 +130,7 @@ Todas as respostas da API seguem este padrão:
 }
 ```
 
-### 5. Cancelar Reserva
+### 6. Cancelar Reserva
 **DELETE** `/reservas/{id}`
 
 Altera o status de uma reserva para `cancelada`.

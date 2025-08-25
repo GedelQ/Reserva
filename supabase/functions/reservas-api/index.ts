@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 }
 
@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
       let query = supabaseClient
         .from('reservas')
         .select('*')
-        .eq('status', 'ativa')
+        .in('status', ['pendente', 'confirmada', 'cancelada'])
         .order('horario_reserva', { ascending: true })
 
       if (numeroReserva) {
@@ -311,6 +311,7 @@ Deno.serve(async (req) => {
         )
       }
 
+      // Etapa 1: Obter um único número de reserva para o grupo
       // Criar reservas
       const reservasParaCriar = mesasParaReservar.map(mesa => ({
         id_mesa: mesa,
@@ -320,6 +321,32 @@ Deno.serve(async (req) => {
         horario_reserva: body.horario_reserva,
         observacoes: body.observacoes || '',
         status: body.status || 'ativa' // Usar o status do body ou 'ativa' como fallback
+      }))
+
+      if (numeroError) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erro ao gerar número da reserva',
+            detalhes: numeroError.message 
+          }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
+      const novoNumeroReserva = numeroData;
+
+      // Etapa 2: Criar o array de reservas com o mesmo número
+      const reservasParaCriar = mesasParaReservar.map(mesa => ({
+        id_mesa: mesa,
+        nome_cliente: body.nome_cliente,
+        telefone_cliente: body.telefone_cliente,
+        data_reserva: body.data_reserva,
+        horario_reserva: body.horario_reserva,
+        observacoes: body.observacoes || '',
+        status: body.status || 'ativa',
+        numero_reserva: novoNumeroReserva, // Usar o mesmo número para todas
       }))
       console.log('Reservas para criar na Edge Function:', reservasParaCriar);
 
@@ -362,6 +389,111 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
+    }
+
+    // POST /reservas/modificar-mesas - Modificar mesas de um cliente usando um ID âncora no corpo
+    if (method === 'POST' && path === '/reservas/modificar-mesas') {
+      const body = await req.json();
+
+      // 1. Validação do corpo da requisição
+      const { id_ancora, novas_mesas, dados_reserva } = body;
+      if (!id_ancora || !Array.isArray(novas_mesas)) {
+        return new Response(JSON.stringify({ error: 'Campos obrigatórios: id_ancora, novas_mesas (array)' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 2. Buscar a reserva âncora para obter os detalhes do cliente e da data
+      const { data: reservaAncora, error: ancoraError } = await supabaseClient
+        .from('reservas')
+        .select('*')
+        .eq('id', id_ancora)
+        .single();
+
+      if (ancoraError || !reservaAncora) {
+        return new Response(JSON.stringify({ error: 'Reserva âncora não encontrada', detalhes: ancoraError?.message }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { nome_cliente, telefone_cliente, data_reserva } = reservaAncora;
+
+      // 3. Buscar todas as reservas atuais para o cliente na data especificada
+      const { data: reservasAtuais, error: fetchError } = await supabaseClient
+        .from('reservas')
+        .select('*')
+        .eq('nome_cliente', nome_cliente)
+        .eq('telefone_cliente', telefone_cliente)
+        .eq('data_reserva', data_reserva);
+
+      if (fetchError) {
+        return new Response(JSON.stringify({ error: 'Erro ao buscar reservas atuais do cliente', detalhes: fetchError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 4. Calcular as diferenças
+      const idsMesasAtuais = new Set(reservasAtuais.map(r => r.id_mesa));
+      const idsMesasNovas = new Set(novas_mesas);
+
+      const mesasParaAdicionar = novas_mesas.filter(idMesa => !idsMesasAtuais.has(idMesa));
+      const reservasParaRemover = reservasAtuais.filter(reserva => !idsMesasNovas.has(reserva.id_mesa));
+      const reservasParaManter = reservasAtuais.filter(reserva => idsMesasNovas.has(reserva.id_mesa));
+
+      const promises = [];
+      const summary = { adicionadas: 0, removidas: 0, atualizadas: 0 };
+
+      // 5. Executar as operações de remoção
+      if (reservasParaRemover.length > 0) {
+        const idsParaRemover = reservasParaRemover.map(r => r.id);
+        promises.push(supabaseClient.from('reservas').delete().in('id', idsParaRemover));
+        summary.removidas = idsParaRemover.length;
+      }
+
+      // 6. Executar as operações de adição
+      if (mesasParaAdicionar.length > 0) {
+        const novasReservasParaCriar = mesasParaAdicionar.map(idMesa => ({
+          nome_cliente,
+          telefone_cliente,
+          data_reserva,
+          id_mesa: idMesa,
+          horario_reserva: dados_reserva?.horario_reserva || reservaAncora.horario_reserva,
+          observacoes: dados_reserva?.observacoes || reservaAncora.observacoes,
+          status: dados_reserva?.status || reservaAncora.status,
+        }));
+        promises.push(supabaseClient.from('reservas').insert(novasReservasParaCriar));
+        summary.adicionadas = novasReservasParaCriar.length;
+      }
+
+      // 7. Executar as operações de atualização (se houver dados para atualizar)
+      if (dados_reserva && Object.keys(dados_reserva).length > 0 && reservasParaManter.length > 0) {
+        const idsParaManter = reservasParaManter.map(r => r.id);
+        promises.push(supabaseClient.from('reservas').update(dados_reserva).in('id', idsParaManter));
+        summary.atualizadas = idsParaManter.length;
+      }
+
+      // 8. Aguardar todas as promessas e tratar erros
+      const results = await Promise.all(promises.map(p => p.catch(e => e)));
+      const errors = results.filter(res => res instanceof Error);
+
+      if (errors.length > 0) {
+        return new Response(JSON.stringify({ error: 'Ocorreram erros durante a modificação das reservas', detalhes: errors.map(e => e.message) }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 9. Retornar resposta de sucesso
+      return new Response(JSON.stringify({ 
+        message: 'Reservas modificadas com sucesso!',
+        detalhes: summary 
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // PUT /reservas/:id - Atualizar reserva
