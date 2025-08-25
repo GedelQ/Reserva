@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 }
 
@@ -311,6 +311,7 @@ Deno.serve(async (req) => {
         )
       }
 
+      // Etapa 1: Obter um único número de reserva para o grupo
       // Criar reservas
       const reservasParaCriar = mesasParaReservar.map(mesa => ({
         id_mesa: mesa,
@@ -320,6 +321,32 @@ Deno.serve(async (req) => {
         horario_reserva: body.horario_reserva,
         observacoes: body.observacoes || '',
         status: body.status || 'ativa' // Usar o status do body ou 'ativa' como fallback
+      }))
+
+      if (numeroError) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erro ao gerar número da reserva',
+            detalhes: numeroError.message 
+          }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
+      const novoNumeroReserva = numeroData;
+
+      // Etapa 2: Criar o array de reservas com o mesmo número
+      const reservasParaCriar = mesasParaReservar.map(mesa => ({
+        id_mesa: mesa,
+        nome_cliente: body.nome_cliente,
+        telefone_cliente: body.telefone_cliente,
+        data_reserva: body.data_reserva,
+        horario_reserva: body.horario_reserva,
+        observacoes: body.observacoes || '',
+        status: body.status || 'ativa',
+        numero_reserva: novoNumeroReserva, // Usar o mesmo número para todas
       }))
       console.log('Reservas para criar na Edge Function:', reservasParaCriar);
 
