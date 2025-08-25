@@ -45,36 +45,17 @@ export const useReservas = (dataFiltro?: string) => {
   }, [dataFiltro, refetch]);
 
   const criarReserva = useCallback(async (
-    reservaData: Omit<Reserva, 'id' | 'created_at'>,
+    reservaData: Omit<Reserva, 'id' | 'created_at' | 'numero_reserva'> & { mesas: number[] },
     dispatchWebhook = true
   ) => {
     try {
-      const novaReserva = await createReserva(reservaData);
-      if (dispatchWebhook) {
-        await processWebhook(WEBHOOK_EVENTS.RESERVA_CRIADA, novaReserva);
-      }
-      return novaReserva;
+      const novasReservas = await createReserva(reservaData);
+      // if (dispatchWebhook) {
+      //   await processWebhook(WEBHOOK_EVENTS.RESERVA_CRIADA, novasReservas);
+      // }
+      return novasReservas;
     } catch (error) {
       console.error('Erro ao criar reserva:', error);
-      refetch();
-      throw error;
-    }
-  }, [refetch]);
-
-  const criarMultiplasReservas = useCallback(async (
-    reservaData: Omit<Reserva, 'id' | 'created_at' | 'id_mesa'>,
-    mesas: Mesa[]
-  ) => {
-    try {
-      const promises = mesas.map(mesa => createReserva({ ...reservaData, id_mesa: mesa.id }, false));
-      const novasReservas = await Promise.all(promises);
-      const reservasValidas = novasReservas.filter(r => r !== null) as Reserva[];
-      if (reservasValidas.length > 0) {
-        await processWebhook(WEBHOOK_EVENTS.RESERVA_CRIADA, reservasValidas);
-      }
-      return reservasValidas;
-    } catch (error) {
-      console.error('Erro ao criar múltiplas reservas:', error);
       refetch();
       throw error;
     }
@@ -169,16 +150,17 @@ export const useReservas = (dataFiltro?: string) => {
 
       const promises = [];
 
-      for (const mesa of mesasParaAdicionar) {
-        promises.push(createReserva({
+      if (mesasParaAdicionar.length > 0) {
+        const reservaParaAdicionar = {
           ...reservaData,
-          id_mesa: mesa.id,
           data_reserva: reservaOriginal.data_reserva,
           nome_cliente: reservaData.nome_cliente || reservaOriginal.nome_cliente,
           telefone_cliente: reservaData.telefone_cliente || reservaOriginal.telefone_cliente,
           horario_reserva: reservaData.horario_reserva || reservaOriginal.horario_reserva,
           status: reservaData.status || reservaOriginal.status,
-        }, false)); // dispatchWebhook = false
+          mesas: mesasParaAdicionar.map(m => m.id)
+        };
+        promises.push(createReserva(reservaParaAdicionar, false));
       }
 
       for (const reserva of reservasParaRemover) {
@@ -202,7 +184,7 @@ export const useReservas = (dataFiltro?: string) => {
     } finally {
       refetch();
     }
-  }, [buscarReservasDoCliente, refetch]);
+  }, [buscarReservasDoCliente, refetch, criarReserva]);
 
   const atualizarReservasDoCliente = useCallback(async (nomeCliente: string, telefoneCliente: string, dataReserva: string, reservaData: Partial<Reserva>) => {
     try {
@@ -226,7 +208,6 @@ export const useReservas = (dataFiltro?: string) => {
     error,
     refetch,
     criarReserva,
-    criarMultiplasReservas,
     atualizarReserva,
     cancelarReserva,
     cancelarMultiplasReservas,

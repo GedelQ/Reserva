@@ -21,7 +21,6 @@ function App() {
     reservas,
     loading,
     criarReserva,
-    criarMultiplasReservas,
     modificarReserva,
     cancelarMultiplasReservas, // Importar a nova função
     buscarReservasDoCliente,
@@ -96,11 +95,11 @@ function App() {
       if (reservaEmEdicao) {
         await modificarReserva(reservaEmEdicao, mesasSelecionadas, reservaData);
       } else {
-        if (mesasSelecionadas.length > 1) {
-          await criarMultiplasReservas(reservaData, mesasSelecionadas);
-        } else if (mesasSelecionadas.length === 1) {
-          await criarReserva({ ...reservaData, id_mesa: mesasSelecionadas[0].id });
-        }
+        const reservaParaCriar = {
+          ...reservaData,
+          mesas: mesasSelecionadas.map(m => m.id)
+        };
+        await criarReserva(reservaParaCriar);
       }
       setShowModal(false);
     } catch (error) {

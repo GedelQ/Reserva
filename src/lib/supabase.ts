@@ -84,25 +84,23 @@ export const fetchReservas = async (filters?: { data_reserva?: string; nome_clie
 }
 
 // Função para criar reserva
-export const createReserva = async (reservaData: Omit<Reserva, 'id' | 'created_at'>) => {
+export const createReserva = async (reservaData: Omit<Reserva, 'id' | 'created_at' | 'numero_reserva'> & { mesas?: number[] }) => {
   try {
-    const { data, error } = await supabase
-      .from('reservas')
-      .insert([reservaData])
-      .select()
-      .single()
+    const { data, error } = await supabase.functions.invoke('reservas-api', {
+      body: reservaData,
+    });
 
     if (error) {
-      console.error('Erro ao criar reserva:', error)
-      throw error
+      console.error('Erro ao criar reserva:', error);
+      throw error;
     }
 
-    return data
+    return data.reservas;
   } catch (error) {
-    console.error('Erro ao criar reserva:', error)
-    throw error
+    console.error('Erro ao criar reserva (catch):', error);
+    throw error;
   }
-}
+};
 
 // Função para atualizar reserva
 export const updateReserva = async (id: string, reservaData: Partial<Reserva>) => {
