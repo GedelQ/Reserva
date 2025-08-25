@@ -287,6 +287,39 @@ Deno.serve(async (req) => {
         status: 201,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
+    } else if (req.method === 'GET') {
+      const url = new URL(req.url);
+      const dataReserva = url.searchParams.get('data_reserva');
+      const numeroReserva = url.searchParams.get('numero_reserva');
+      const telefoneCliente = url.searchParams.get('telefone_cliente');
+
+      let query = supabaseClient.from('reservas').select('*');
+
+      if (dataReserva) {
+        query = query.eq('data_reserva', dataReserva);
+      }
+
+      if (numeroReserva) {
+        query = query.eq('numero_reserva', numeroReserva);
+      }
+
+      if (telefoneCliente) {
+        query = query.eq('telefone_cliente', telefoneCliente);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     return new Response(JSON.stringify({

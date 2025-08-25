@@ -226,4 +226,3 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
 }
 
 export default Dashboard
-

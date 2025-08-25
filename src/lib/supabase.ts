@@ -102,6 +102,26 @@ export const createReserva = async (reservaData: Omit<Reserva, 'id' | 'created_a
   }
 };
 
+// Função para pesquisar reservas
+export const searchReservas = async (filters: { data_reserva?: string; numero_reserva?: string; telefone_cliente?: string; }) => {
+  try {
+    const { data, error } = await supabase.functions.invoke('reservas-api', {
+      method: 'GET',
+      params: filters,
+    });
+
+    if (error) {
+      console.error('Erro ao pesquisar reservas:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Erro ao pesquisar reservas (catch):', error);
+    throw error;
+  }
+};
+
 // Função para atualizar reserva
 export const updateReserva = async (id: string, reservaData: Partial<Reserva>) => {
   try {

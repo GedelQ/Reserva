@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { supabase, fetchReservas, createReserva, updateReserva, deleteReserva, type Reserva, type Mesa } from '../lib/supabase'
+import { supabase, fetchReservas, createReserva, updateReserva, deleteReserva, searchReservas, type Reserva, type Mesa } from '../lib/supabase'
 import { processWebhook, WEBHOOK_EVENTS } from '../lib/webhook'
 
 export const useReservas = (dataFiltro?: string) => {
@@ -60,6 +60,16 @@ export const useReservas = (dataFiltro?: string) => {
       throw error;
     }
   }, [refetch]);
+
+  const pesquisarReservas = useCallback(async (filters: { data_reserva?: string; numero_reserva?: string; telefone_cliente?: string; }) => {
+    try {
+      const resultados = await searchReservas(filters);
+      return resultados;
+    } catch (error) {
+      console.error('Erro ao pesquisar reservas:', error);
+      throw error;
+    }
+  }, []);
 
   const atualizarReserva = useCallback(async (
     id: string,
@@ -208,6 +218,7 @@ export const useReservas = (dataFiltro?: string) => {
     error,
     refetch,
     criarReserva,
+    pesquisarReservas,
     atualizarReserva,
     cancelarReserva,
     cancelarMultiplasReservas,
