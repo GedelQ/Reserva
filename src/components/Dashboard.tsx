@@ -48,7 +48,7 @@ const Dashboard: React.FC<DashboardProps> = ({ reservas, loading, dataFiltro, on
   const clientesAgrupados = useMemo(() => {
     const grupos: Record<string, ClienteAgrupado> = {}
     reservas.forEach(reserva => { // Usa 'reservas' completas para agrupar todos os clientes
-      const chave = `${reserva.nome_cliente}-${reserva.telefone_cliente}`
+      const chave = `${reserva.numero_reserva}`
       if (!grupos[chave]) {
         grupos[chave] = { nome_cliente: reserva.nome_cliente, telefone_cliente: reserva.telefone_cliente, horario_reserva: reserva.horario_reserva, observacoes: reserva.observacoes, reservas: [], mesas: [], totalMesas: 0 }
       }

@@ -280,9 +280,29 @@ Deno.serve(async (req) => {
       // Dispara o webhook sem bloquear a resposta
       processWebhook(supabaseClient, WEBHOOK_EVENTS.RESERVA_CRIADA, novasReservas);
 
+      if (!novasReservas || novasReservas.length === 0) {
+          return new Response(JSON.stringify({
+              message: 'Reserva criada, mas não foi possível retornar os dados.',
+              reservas: []
+          }), {
+              status: 201,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+      }
+
+      const primeiraReserva = novasReservas[0];
+      const mesasDaReserva = novasReservas.map(r => r.id_mesa);
+
+      const reservaAgrupada = {
+          ...primeiraReserva,
+          id_ancora: primeiraReserva.id,
+          mesas: mesasDaReserva
+      };
+      delete reservaAgrupada.id_mesa;
+
       return new Response(JSON.stringify({
         message: 'Reservas criadas com sucesso',
-        reservas: novasReservas
+        reserva: reservaAgrupada
       }), {
         status: 201,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
