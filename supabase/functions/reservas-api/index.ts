@@ -290,21 +290,24 @@ Deno.serve(async (req) => {
     } else if (req.method === 'GET') {
       const url = new URL(req.url);
       const dataReserva = url.searchParams.get('data_reserva');
+      const numeroReserva = url.searchParams.get('numero_reserva');
+      const telefoneCliente = url.searchParams.get('telefone_cliente');
       const clienteNome = url.searchParams.get('cliente_nome');
-      const clienteTelefone = url.searchParams.get('cliente_telefone');
       const mesa = url.searchParams.get('mesa');
       const statusParam = url.searchParams.get('status');
 
       let query = supabaseClient.from('reservas').select('*').order('horario_reserva', { ascending: true });
 
       if (dataReserva) query = query.eq('data_reserva', dataReserva);
+      if (numeroReserva) query = query.eq('numero_reserva', numeroReserva);
+      if (telefoneCliente) query = query.like('telefone_cliente', `%${telefoneCliente.replace(/\D/g, '')}%`);
       if (clienteNome) query = query.ilike('nome_cliente', `%${clienteNome}%`);
-      if (clienteTelefone) query = query.like('telefone_cliente', `%${clienteTelefone.replace(/\D/g, '')}%`);
       if (mesa) query = query.eq('id_mesa', parseInt(mesa));
+
       if (statusParam) {
         const statusList = statusParam.split(',').map((s) => s.trim());
         query = query.in('status', statusList);
-      } else {
+      } else if (!numeroReserva) {
         query = query.in('status', STATUS_ATIVOS);
       }
 
