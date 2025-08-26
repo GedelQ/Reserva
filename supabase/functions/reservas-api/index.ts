@@ -192,7 +192,17 @@ Deno.serve(async (req) => {
   );
 
   try {
-    if (req.method === 'POST') {
+    const url = new URL(req.url);
+    let path = url.pathname;
+    if (path.startsWith('/functions/v1/reservas-api')) {
+      path = path.replace('/functions/v1/reservas-api', '');
+    } else if (path.startsWith('/reservas-api')) {
+      path = path.replace('/reservas-api', '');
+    }
+
+    const method = req.method;
+
+    if (method === 'POST' && path === '/reservas') {
       const body = await req.json();
       const { nome_cliente, telefone_cliente, data_reserva, horario_reserva, mesas, observacoes, status } = body;
 
@@ -305,6 +315,107 @@ Deno.serve(async (req) => {
         reserva: reservaAgrupada
       }), {
         status: 201,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } else if (method === 'POST' && path === '/reservas/modificar-mesas') {
+      const bodyText = await req.text();
+      if (!bodyText) {
+          return new Response(JSON.stringify({
+              success: false, status_code_real: 400, message: 'Corpo da requisição está vazio. Certifique-se de enviar os dados em formato JSON.'
+          }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      let body;
+      try {
+          body = JSON.parse(bodyText);
+      } catch (e) {
+          return new Response(JSON.stringify({
+              success: false, status_code_real: 400, message: 'JSON inválido no corpo da requisição.', detalhes: e.message
+          }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const { id_ancora, novas_mesas, dados_reserva } = body;
+
+      if (!id_ancora || !novas_mesas || !Array.isArray(novas_mesas) || !dados_reserva) {
+        return new Response(JSON.stringify({
+          success: false, status_code_real: 400, message: 'Campos obrigatórios: id_ancora, novas_mesas, dados_reserva.'
+        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const { data: ancora, error: ancoraError } = await supabaseClient
+        .from('reservas')
+        .select('numero_reserva, data_reserva, nome_cliente, telefone_cliente')
+        .eq('id', id_ancora)
+        .single();
+
+      if (ancoraError || !ancora) {
+        return new Response(JSON.stringify({
+          success: false, status_code_real: 404, message: 'Reserva âncora não encontrada.'
+        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      const { numero_reserva, data_reserva, nome_cliente, telefone_cliente } = ancora;
+
+      const { data: conflitos, error: conflitosError } = await supabaseClient
+        .from('reservas')
+        .select('id_mesa')
+        .eq('data_reserva', data_reserva)
+        .in('id_mesa', novas_mesas)
+        .not('numero_reserva', 'eq', numero_reserva)
+        .in('status', STATUS_ATIVOS);
+
+      if (conflitosError) throw conflitosError;
+
+      if (conflitos && conflitos.length > 0) {
+        const mesasOcupadas = conflitos.map(c => c.id_mesa).join(', ');
+        return new Response(JSON.stringify({
+          success: false, status_code_real: 409, message: `Conflito: As seguintes mesas já estão reservadas por outro grupo: ${mesasOcupadas}`
+        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const { error: deleteError } = await supabaseClient
+        .from('reservas')
+        .delete()
+        .eq('numero_reserva', numero_reserva);
+
+      if (deleteError) throw deleteError;
+
+      const reservasParaCriar = novas_mesas.map((mesaId) => ({
+        id_mesa: mesaId,
+        nome_cliente: dados_reserva.nome_cliente || nome_cliente,
+        telefone_cliente: dados_reserva.telefone_cliente || telefone_cliente,
+        data_reserva: data_reserva,
+        horario_reserva: dados_reserva.horario_reserva,
+        observacoes: dados_reserva.observacoes,
+        status: dados_reserva.status || 'pendente',
+        numero_reserva: numero_reserva,
+      }));
+
+      const { data: novasReservas, error: errorCriar } = await supabaseClient
+        .from('reservas')
+        .insert(reservasParaCriar)
+        .select();
+
+      if (errorCriar) {
+          throw new Error(`Falha ao criar novas reservas após deletar as antigas: ${errorCriar.message}`);
+      }
+      
+      processWebhook(supabaseClient, WEBHOOK_EVENTS.RESERVA_ATUALIZADA, novasReservas);
+
+      const primeiraReserva = novasReservas[0];
+      const mesasDaReserva = novasReservas.map(r => r.id_mesa);
+      const reservaAgrupada = {
+          ...primeiraReserva,
+          id_ancora: primeiraReserva.id,
+          mesas: mesasDaReserva
+      };
+      delete reservaAgrupada.id_mesa;
+
+      return new Response(JSON.stringify({
+        message: 'Reserva modificada com sucesso',
+        reserva: reservaAgrupada
+      }), {
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } else if (req.method === 'GET') {
