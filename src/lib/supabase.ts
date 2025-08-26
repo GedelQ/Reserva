@@ -19,6 +19,7 @@ export interface Reserva {
   status: 'confirmada' | 'cancelada' | 'finalizada' | 'pendente'
   id_mesa_historico?: number | null
   isOptimistic?: boolean
+  mesas?: number[]
 }
 
 export interface Mesa {
@@ -84,25 +85,44 @@ export const fetchReservas = async (filters?: { data_reserva?: string; nome_clie
 }
 
 // Função para criar reserva
-export const createReserva = async (reservaData: Omit<Reserva, 'id' | 'created_at'>) => {
+export const createReserva = async (reservaData: Omit<Reserva, 'id' | 'created_at' | 'numero_reserva'> & { mesas?: number[] }) => {
   try {
-    const { data, error } = await supabase
-      .from('reservas')
-      .insert([reservaData])
-      .select()
-      .single()
+    const { data, error } = await supabase.functions.invoke('dashboard-api', {
+      body: reservaData,
+    });
 
     if (error) {
-      console.error('Erro ao criar reserva:', error)
-      throw error
+      console.error('Erro ao criar reserva:', error);
+      throw error;
     }
 
-    return data
+    return data.reservas;
   } catch (error) {
-    console.error('Erro ao criar reserva:', error)
-    throw error
+    console.error('Erro ao criar reserva (catch):', error);
+    throw error;
   }
-}
+};
+
+// Função para pesquisar reservas
+export const searchReservas = async (filters: { data_reserva?: string; numero_reserva?: string; telefone_cliente?: string; }) => {
+  try {
+    const { data, error } = await supabase.functions.invoke('dashboard-api', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      params: filters,
+    });
+
+    if (error) {
+      console.error('Erro ao pesquisar reservas:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Erro ao pesquisar reservas (catch):', error);
+    throw error;
+  }
+};
 
 // Função para atualizar reserva
 export const updateReserva = async (id: string, reservaData: Partial<Reserva>) => {

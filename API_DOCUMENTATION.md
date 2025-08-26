@@ -1,4 +1,4 @@
-# 🍕 API de Reservas da Pizzaria v1.2
+# 🍕 API de Reservas da Pizzaria v1.3
 
 ## 📋 Visão Geral
 
@@ -43,49 +43,23 @@ Todas as respostas da API seguem este padrão:
 ### 1. Consultar Disponibilidade
 **GET** `/disponibilidade?data_reserva=YYYY-MM-DD`
 
-#### Exemplo de Resposta de Sucesso:
-```json
-{
-  "success": true,
-  "data": {
-    "data_consulta": "2025-12-25",
-    "total_mesas_reservadas": 15,
-    "total_mesas_disponiveis": 15
-  }
-}
-```
+Consulta o total de mesas disponíveis e reservadas para uma data específica.
 
-### 2. Listar Reservas
+### 2. Pesquisar Reservas
 **GET** `/reservas`
 
-*   **Query Params (Opcionais):**
-    *   `numero_reserva` (number): Filtra pela reserva com o número exato.
-    *   `data_reserva` (string): Filtra por uma data específica (formato `YYYY-MM-DD`).
-    *   `cliente_nome` (string): Busca por parte do nome do cliente.
-    *   `cliente_telefone` (string): Busca por parte do telefone do cliente.
-    *   `mesa` (number): Filtra por um número de mesa específico.
+Busca reservas com base em filtros. As reservas são retornadas agrupadas por `numero_reserva`.
 
-#### Exemplo de Resposta de Sucesso:
-```json
-{
-  "success": true,
-  "data": {
-    "reservas": [
-      {
-        "id": "...",
-        "numero_reserva": 101,
-        "status": "confirmada",
-        "nome_cliente": "João Silva",
-        "..."
-      }
-    ],
-    "total": 1
-  }
-}
-```
+*   **Query Params (Opcionais):**
+    *   `data_reserva` (string): Filtra por uma data específica (formato `YYYY-MM-DD`).
+    *   `numero_reserva` (number): Filtra pela reserva com o número exato.
+    *   `telefone_cliente` (string): Busca por parte do telefone do cliente.
+    *   `status` (string): Filtra por status (ex: `pendente`, `confirmada`, `cancelada`).
 
 ### 3. Criar Reserva(s)
 **POST** `/reservas`
+
+Cria uma ou mais reservas para um cliente. A resposta é a reserva criada, já no formato agrupado.
 
 #### Body da Requisição:
 ```json
@@ -99,10 +73,13 @@ Todas as respostas da API seguem este padrão:
 }
 ```
 
-### 4. Modificar Mesas da Reserva (por Grupo)
+### 4. Modificar Reserva (Grupo)
 **POST** `/reservas/modificar-mesas`
 
-Modifica todo o conjunto de mesas de um cliente em uma data, usando o ID de qualquer reserva do grupo como âncora (enviado no corpo da requisição).
+Modifica um grupo de reservas existente. Permite alterar as mesas, a data e outros dados da reserva.
+
+*   Usa o `id` de qualquer reserva do grupo como âncora.
+*   A API primeiro verifica se as novas mesas estão disponíveis na nova data antes de aplicar qualquer alteração.
 
 #### Body da Requisição:
 ```json
@@ -110,39 +87,25 @@ Modifica todo o conjunto de mesas de um cliente em uma data, usando o ID de qual
   "id_ancora": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
   "novas_mesas": [10, 12, 14],
   "dados_reserva": {
+    "data_reserva": "2025-09-16",
     "horario_reserva": "20:30:00",
     "observacoes": "Cliente pediu urgência."
   }
 }
 ```
 
+### 5. Atualizar Status da Reserva
+**POST** `/reservas/atualizar-status`
 
-### 5. Atualizar Reserva Individual
-**PUT** `/reservas/{id}`
+Atualiza o status de uma única reserva individual.
 
-Atualiza os dados de uma única reserva pelo seu ID.
+*   Se o status for alterado para `cancelada`, o `id_mesa` será salvo em `id_mesa_historico` e o campo `id_mesa` ficará nulo.
 
 #### Body da Requisição:
 ```json
 {
-  "horario_reserva": "20:30:00",
+  "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
   "status": "confirmada"
-}
-```
-
-### 6. Cancelar Reserva
-**DELETE** `/reservas/{id}`
-
-Altera o status de uma reserva para `cancelada`.
-
-#### Exemplo de Resposta de Sucesso:
-```json
-{
-    "success": true,
-    "data": {
-        "message": "Reserva cancelada com sucesso",
-        "reserva": { "id": "...", "status": "cancelada", ... }
-    }
 }
 ```
 

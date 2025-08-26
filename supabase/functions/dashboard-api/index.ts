@@ -183,7 +183,7 @@ const STATUS_ATIVOS = ['pendente', 'confirmada'];
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
   const supabaseClient = createClient(
@@ -194,15 +194,15 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     let path = url.pathname;
-    if (path.startsWith('/functions/v1/reservas-api')) {
-      path = path.replace('/functions/v1/reservas-api', '');
-    } else if (path.startsWith('/reservas-api')) {
-      path = path.replace('/reservas-api', '');
+    if (path.startsWith('/functions/v1/dashboard-api')) {
+      path = path.replace('/functions/v1/dashboard-api', '');
+    } else if (path.startsWith('/dashboard-api')) {
+      path = path.replace('/dashboard-api', '');
     }
 
     const method = req.method;
 
-    if (method === 'POST' && path === '/reservas') {
+    if (method === 'POST' && (path === '/reservas' || path === '')) {
       const body = await req.json();
       const { nome_cliente, telefone_cliente, data_reserva, horario_reserva, mesas, observacoes, status } = body;
 
@@ -290,178 +290,13 @@ Deno.serve(async (req) => {
       // Dispara o webhook sem bloquear a resposta
       processWebhook(supabaseClient, WEBHOOK_EVENTS.RESERVA_CRIADA, novasReservas);
 
-      if (!novasReservas || novasReservas.length === 0) {
-          return new Response(JSON.stringify({
-              message: 'Reserva criada, mas não foi possível retornar os dados.',
-              reservas: []
-          }), {
-              status: 201,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-      }
-
-      const primeiraReserva = novasReservas[0];
-      const mesasDaReserva = novasReservas.map(r => r.id_mesa);
-
-      const reservaAgrupada = {
-          ...primeiraReserva,
-          id_ancora: primeiraReserva.id,
-          mesas: mesasDaReserva
-      };
-      delete reservaAgrupada.id_mesa;
-
       return new Response(JSON.stringify({
         message: 'Reservas criadas com sucesso',
-        reserva: reservaAgrupada
+        reservas: novasReservas
       }), {
         status: 201,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
-    } else if (method === 'POST' && path === '/reservas/modificar-mesas') {
-      const bodyText = await req.text();
-      if (!bodyText) {
-          return new Response(JSON.stringify({
-              success: false, status_code_real: 400, message: 'Corpo da requisição está vazio. Certifique-se de enviar os dados em formato JSON.'
-          }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      
-      let body;
-      try {
-          body = JSON.parse(bodyText);
-      } catch (e) {
-          return new Response(JSON.stringify({
-              success: false, status_code_real: 400, message: 'JSON inválido no corpo da requisição.', detalhes: e.message
-          }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-
-      const { id_ancora, novas_mesas, dados_reserva } = body;
-
-      if (!id_ancora || !novas_mesas || !Array.isArray(novas_mesas) || !dados_reserva) {
-        return new Response(JSON.stringify({
-          success: false, status_code_real: 400, message: 'Campos obrigatórios: id_ancora, novas_mesas, dados_reserva.'
-        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-
-      const { data: ancora, error: ancoraError } = await supabaseClient
-        .from('reservas')
-        .select('numero_reserva, data_reserva, nome_cliente, telefone_cliente')
-        .eq('id', id_ancora)
-        .single();
-
-      if (ancoraError || !ancora) {
-        return new Response(JSON.stringify({
-          success: false, status_code_real: 404, message: 'Reserva âncora não encontrada.'
-        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      
-      const { numero_reserva, nome_cliente, telefone_cliente } = ancora;
-      const nova_data_reserva = dados_reserva.data_reserva || ancora.data_reserva;
-
-      const { data: conflitos, error: conflitosError } = await supabaseClient
-        .from('reservas')
-        .select('id_mesa')
-        .eq('data_reserva', nova_data_reserva)
-        .in('id_mesa', novas_mesas)
-        .not('numero_reserva', 'eq', numero_reserva)
-        .in('status', STATUS_ATIVOS);
-
-      if (conflitosError) throw conflitosError;
-
-      if (conflitos && conflitos.length > 0) {
-        const mesasOcupadas = conflitos.map(c => c.id_mesa).join(', ');
-        return new Response(JSON.stringify({
-          success: false, status_code_real: 409, message: `Conflito: As seguintes mesas já estão reservadas por outro grupo: ${mesasOcupadas}`
-        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-
-      const { error: deleteError } = await supabaseClient
-        .from('reservas')
-        .delete()
-        .eq('numero_reserva', numero_reserva);
-
-      if (deleteError) throw deleteError;
-
-      const reservasParaCriar = novas_mesas.map((mesaId) => ({
-        id_mesa: mesaId,
-        nome_cliente: dados_reserva.nome_cliente || nome_cliente,
-        telefone_cliente: dados_reserva.telefone_cliente || telefone_cliente,
-        data_reserva: nova_data_reserva,
-        horario_reserva: dados_reserva.horario_reserva,
-        observacoes: dados_reserva.observacoes,
-        status: dados_reserva.status || 'pendente',
-        numero_reserva: numero_reserva,
-      }));
-
-      const { data: novasReservas, error: errorCriar } = await supabaseClient
-        .from('reservas')
-        .insert(reservasParaCriar)
-        .select();
-
-      if (errorCriar) {
-          throw new Error(`Falha ao criar novas reservas após deletar as antigas: ${errorCriar.message}`);
-      }
-      
-      processWebhook(supabaseClient, WEBHOOK_EVENTS.RESERVA_ATUALIZADA, novasReservas);
-
-      const primeiraReserva = novasReservas[0];
-      const mesasDaReserva = novasReservas.map(r => r.id_mesa);
-      const reservaAgrupada = {
-          ...primeiraReserva,
-          id_ancora: primeiraReserva.id,
-          mesas: mesasDaReserva
-      };
-      delete reservaAgrupada.id_mesa;
-
-      return new Response(JSON.stringify({
-        message: 'Reserva modificada com sucesso',
-        reserva: reservaAgrupada
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    } else if (method === 'POST' && path === '/reservas/atualizar-status') {
-        const { id, status } = await req.json();
-
-        if (!id || !status) {
-            return new Response(JSON.stringify({ success: false, status_code_real: 400, message: 'Campos obrigatórios: id, status.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        }
-
-        if (!['pendente', 'confirmada', 'cancelada'].includes(status)) {
-            return new Response(JSON.stringify({ success: false, status_code_real: 400, message: 'Status inválido.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        }
-
-        let updateData: Partial<Reserva> = { status };
-
-        if (status === 'cancelada') {
-            const { data: reservaOriginal, error: fetchError } = await supabaseClient
-                .from('reservas')
-                .select('id_mesa')
-                .eq('id', id)
-                .single();
-
-            if (fetchError || !reservaOriginal) {
-                return new Response(JSON.stringify({ success: false, status_code_real: 404, message: 'Reserva original não encontrada para cancelamento.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-            }
-            updateData.id_mesa = null;
-            updateData.id_mesa_historico = reservaOriginal.id_mesa;
-        }
-
-        const { data: reservaAtualizada, error } = await supabaseClient
-            .from('reservas')
-            .update(updateData)
-            .eq('id', id)
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        const event = status === 'cancelada' ? WEBHOOK_EVENTS.RESERVA_CANCELADA : WEBHOOK_EVENTS.RESERVA_ATUALIZADA;
-        processWebhook(supabaseClient, event, reservaAtualizada);
-
-        return new Response(JSON.stringify({
-            message: 'Reserva atualizada com sucesso',
-            reserva: reservaAtualizada
-        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     } else if (req.method === 'GET') {
       const url = new URL(req.url);
       const dataReserva = url.searchParams.get('data_reserva');

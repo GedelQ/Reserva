@@ -330,6 +330,22 @@ Deno.serve(async (req) => {
         });
       }
 
+      const { data: numeroData, error: numeroError } = await supabaseClient.rpc('gerar_numero_reserva')
+
+      if (numeroError) {
+        return new Response(
+          JSON.stringify({
+            error: 'Erro ao gerar número da reserva',
+            detalhes: numeroError.message,
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
+      const novoNumeroReserva = numeroData
+
       const reservasParaCriar = mesas.map((mesaId) => ({
         id_mesa: mesaId,
         nome_cliente,
@@ -337,7 +353,8 @@ Deno.serve(async (req) => {
         data_reserva,
         horario_reserva,
         observacoes: observacoes || '',
-        status: ['pendente', 'confirmada'].includes(status) ? status : 'pendente'
+        status: ['pendente', 'confirmada'].includes(status) ? status : 'pendente',
+        numero_reserva: novoNumeroReserva, // Usar o mesmo número para todas
       }));
 
       const { data: novasReservas, error: errorCriar } = await supabaseClient

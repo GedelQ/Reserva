@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { supabase, fetchReservas, createReserva, updateReserva, deleteReserva, type Reserva, type Mesa } from '../lib/supabase'
+import { supabase, fetchReservas, createReserva, updateReserva, deleteReserva, searchReservas, type Reserva, type Mesa } from '../lib/supabase'
 import { processWebhook, WEBHOOK_EVENTS } from '../lib/webhook'
 
 export const useReservas = (dataFiltro?: string) => {
@@ -45,15 +45,15 @@ export const useReservas = (dataFiltro?: string) => {
   }, [dataFiltro, refetch]);
 
   const criarReserva = useCallback(async (
-    reservaData: Omit<Reserva, 'id' | 'created_at'>,
+    reservaData: Omit<Reserva, 'id' | 'created_at' | 'numero_reserva'> & { mesas: number[] },
     dispatchWebhook = true
   ) => {
     try {
-      const novaReserva = await createReserva(reservaData);
-      if (dispatchWebhook) {
-        await processWebhook(WEBHOOK_EVENTS.RESERVA_CRIADA, novaReserva);
-      }
-      return novaReserva;
+      const novasReservas = await createReserva(reservaData);
+      // if (dispatchWebhook) {
+      //   await processWebhook(WEBHOOK_EVENTS.RESERVA_CRIADA, novasReservas);
+      // }
+      return novasReservas;
     } catch (error) {
       console.error('Erro ao criar reserva:', error);
       refetch();
@@ -61,24 +61,15 @@ export const useReservas = (dataFiltro?: string) => {
     }
   }, [refetch]);
 
-  const criarMultiplasReservas = useCallback(async (
-    reservaData: Omit<Reserva, 'id' | 'created_at' | 'id_mesa'>,
-    mesas: Mesa[]
-  ) => {
+  const pesquisarReservas = useCallback(async (filters: { data_reserva?: string; numero_reserva?: string; telefone_cliente?: string; }) => {
     try {
-      const promises = mesas.map(mesa => createReserva({ ...reservaData, id_mesa: mesa.id }, false));
-      const novasReservas = await Promise.all(promises);
-      const reservasValidas = novasReservas.filter(r => r !== null) as Reserva[];
-      if (reservasValidas.length > 0) {
-        await processWebhook(WEBHOOK_EVENTS.RESERVA_CRIADA, reservasValidas);
-      }
-      return reservasValidas;
+      const resultados = await searchReservas(filters);
+      return resultados;
     } catch (error) {
-      console.error('Erro ao criar múltiplas reservas:', error);
-      refetch();
+      console.error('Erro ao pesquisar reservas:', error);
       throw error;
     }
-  }, [refetch]);
+  }, []);
 
   const atualizarReserva = useCallback(async (
     id: string,
@@ -169,16 +160,17 @@ export const useReservas = (dataFiltro?: string) => {
 
       const promises = [];
 
-      for (const mesa of mesasParaAdicionar) {
-        promises.push(createReserva({
+      if (mesasParaAdicionar.length > 0) {
+        const reservaParaAdicionar = {
           ...reservaData,
-          id_mesa: mesa.id,
           data_reserva: reservaOriginal.data_reserva,
           nome_cliente: reservaData.nome_cliente || reservaOriginal.nome_cliente,
           telefone_cliente: reservaData.telefone_cliente || reservaOriginal.telefone_cliente,
           horario_reserva: reservaData.horario_reserva || reservaOriginal.horario_reserva,
           status: reservaData.status || reservaOriginal.status,
-        }, false)); // dispatchWebhook = false
+          mesas: mesasParaAdicionar.map(m => m.id)
+        };
+        promises.push(createReserva(reservaParaAdicionar, false));
       }
 
       for (const reserva of reservasParaRemover) {
@@ -202,7 +194,7 @@ export const useReservas = (dataFiltro?: string) => {
     } finally {
       refetch();
     }
-  }, [buscarReservasDoCliente, refetch]);
+  }, [buscarReservasDoCliente, refetch, criarReserva]);
 
   const atualizarReservasDoCliente = useCallback(async (nomeCliente: string, telefoneCliente: string, dataReserva: string, reservaData: Partial<Reserva>) => {
     try {
@@ -226,7 +218,7 @@ export const useReservas = (dataFiltro?: string) => {
     error,
     refetch,
     criarReserva,
-    criarMultiplasReservas,
+    pesquisarReservas,
     atualizarReserva,
     cancelarReserva,
     cancelarMultiplasReservas,
