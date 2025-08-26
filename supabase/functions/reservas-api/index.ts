@@ -290,46 +290,63 @@ Deno.serve(async (req) => {
     } else if (req.method === 'GET') {
       const url = new URL(req.url);
       const dataReserva = url.searchParams.get('data_reserva');
-      const numeroReserva = url.searchParams.get('numero_reserva');
-      const telefoneCliente = url.searchParams.get('telefone_cliente');
+      const clienteNome = url.searchParams.get('cliente_nome');
+      const clienteTelefone = url.searchParams.get('cliente_telefone');
+      const mesa = url.searchParams.get('mesa');
+      const statusParam = url.searchParams.get('status');
 
-      let query = supabaseClient.from('reservas').select('*');
+      let query = supabaseClient.from('reservas').select('*').order('horario_reserva', { ascending: true });
 
-      if (dataReserva) {
-        query = query.eq('data_reserva', dataReserva);
-      }
-
-      if (numeroReserva) {
-        query = query.eq('numero_reserva', numeroReserva);
-      }
-
-      if (telefoneCliente) {
-        query = query.eq('telefone_cliente', telefoneCliente);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      if (data && data.length > 0) {
-        const primeiraReserva = data[0];
-        const mesas = data.map(r => r.id_mesa);
-        const reservaAgrupada = { ...primeiraReserva, mesas };
-        return new Response(JSON.stringify(reservaAgrupada), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      if (dataReserva) query = query.eq('data_reserva', dataReserva);
+      if (clienteNome) query = query.ilike('nome_cliente', `%${clienteNome}%`);
+      if (clienteTelefone) query = query.like('telefone_cliente', `%${clienteTelefone.replace(/\D/g, '')}%`);
+      if (mesa) query = query.eq('id_mesa', parseInt(mesa));
+      if (statusParam) {
+        const statusList = statusParam.split(',').map((s) => s.trim());
+        query = query.in('status', statusList);
       } else {
-        return new Response(JSON.stringify([]), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        query = query.in('status', STATUS_ATIVOS);
+      }
+
+      const { data: reservas, error } = await query;
+      if (error) throw error;
+
+      if (!reservas || reservas.length === 0) {
+        return new Response(JSON.stringify({
+          reservas: [],
+          total: 0
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
+
+      const groupedReservas = new Map<number, any>();
+
+      for (const reserva of reservas) {
+        if (!reserva.numero_reserva) continue;
+
+        if (groupedReservas.has(reserva.numero_reserva)) {
+          const existing = groupedReservas.get(reserva.numero_reserva);
+          existing.mesas.push(reserva.id_mesa);
+        } else {
+          const newGroup = {
+            ...reserva,
+            id_ancora: reserva.id,
+            mesas: [reserva.id_mesa]
+          };
+          delete newGroup.id_mesa;
+          groupedReservas.set(reserva.numero_reserva, newGroup);
+        }
+      }
+
+      const resultadoFinal = Array.from(groupedReservas.values());
+
+      return new Response(JSON.stringify({
+        reservas: resultadoFinal,
+        total: resultadoFinal.length
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     return new Response(JSON.stringify({
