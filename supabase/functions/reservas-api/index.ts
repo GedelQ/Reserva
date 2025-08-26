@@ -354,12 +354,13 @@ Deno.serve(async (req) => {
         }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       
-      const { numero_reserva, data_reserva, nome_cliente, telefone_cliente } = ancora;
+      const { numero_reserva, nome_cliente, telefone_cliente } = ancora;
+      const nova_data_reserva = dados_reserva.data_reserva || ancora.data_reserva;
 
       const { data: conflitos, error: conflitosError } = await supabaseClient
         .from('reservas')
         .select('id_mesa')
-        .eq('data_reserva', data_reserva)
+        .eq('data_reserva', nova_data_reserva)
         .in('id_mesa', novas_mesas)
         .not('numero_reserva', 'eq', numero_reserva)
         .in('status', STATUS_ATIVOS);
@@ -384,7 +385,7 @@ Deno.serve(async (req) => {
         id_mesa: mesaId,
         nome_cliente: dados_reserva.nome_cliente || nome_cliente,
         telefone_cliente: dados_reserva.telefone_cliente || telefone_cliente,
-        data_reserva: data_reserva,
+        data_reserva: nova_data_reserva,
         horario_reserva: dados_reserva.horario_reserva,
         observacoes: dados_reserva.observacoes,
         status: dados_reserva.status || 'pendente',
@@ -418,6 +419,49 @@ Deno.serve(async (req) => {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
+    } else if (method === 'POST' && path === '/reservas/atualizar-status') {
+        const { id, status } = await req.json();
+
+        if (!id || !status) {
+            return new Response(JSON.stringify({ success: false, status_code_real: 400, message: 'Campos obrigatórios: id, status.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+
+        if (!['pendente', 'confirmada', 'cancelada'].includes(status)) {
+            return new Response(JSON.stringify({ success: false, status_code_real: 400, message: 'Status inválido.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+
+        let updateData: Partial<Reserva> = { status };
+
+        if (status === 'cancelada') {
+            const { data: reservaOriginal, error: fetchError } = await supabaseClient
+                .from('reservas')
+                .select('id_mesa')
+                .eq('id', id)
+                .single();
+
+            if (fetchError || !reservaOriginal) {
+                return new Response(JSON.stringify({ success: false, status_code_real: 404, message: 'Reserva original não encontrada para cancelamento.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            }
+            updateData.id_mesa = null;
+            updateData.id_mesa_historico = reservaOriginal.id_mesa;
+        }
+
+        const { data: reservaAtualizada, error } = await supabaseClient
+            .from('reservas')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        const event = status === 'cancelada' ? WEBHOOK_EVENTS.RESERVA_CANCELADA : WEBHOOK_EVENTS.RESERVA_ATUALIZADA;
+        processWebhook(supabaseClient, event, reservaAtualizada);
+
+        return new Response(JSON.stringify({
+            message: 'Reserva atualizada com sucesso',
+            reserva: reservaAtualizada
+        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     } else if (req.method === 'GET') {
       const url = new URL(req.url);
       const dataReserva = url.searchParams.get('data_reserva');
