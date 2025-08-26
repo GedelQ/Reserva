@@ -87,7 +87,7 @@ export const fetchReservas = async (filters?: { data_reserva?: string; nome_clie
 // Função para criar reserva
 export const createReserva = async (reservaData: Omit<Reserva, 'id' | 'created_at' | 'numero_reserva'> & { mesas?: number[] }) => {
   try {
-    const { data, error } = await supabase.functions.invoke('reservas-api', {
+    const { data, error } = await supabase.functions.invoke('dashboard-api', {
       body: reservaData,
     });
 
@@ -106,7 +106,7 @@ export const createReserva = async (reservaData: Omit<Reserva, 'id' | 'created_a
 // Função para pesquisar reservas
 export const searchReservas = async (filters: { data_reserva?: string; numero_reserva?: string; telefone_cliente?: string; }) => {
   try {
-    const { data, error } = await supabase.functions.invoke('reservas-api', {
+    const { data, error } = await supabase.functions.invoke('dashboard-api', {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       params: filters,
