@@ -549,37 +549,46 @@ Deno.serve(async (req) => {
             return new Response(JSON.stringify({ success: false, status_code_real: 400, message: 'Status inválido.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
 
-        let updateData: Partial<Reserva> = { status };
+        // Encontrar o número do grupo a partir do ID âncora
+        const { data: ancora, error: ancoraError } = await supabaseClient
+            .from('reservas')
+            .select('numero_reserva')
+            .eq('id', id)
+            .single();
 
-        if (status === 'cancelada') {
-            const { data: reservaOriginal, error: fetchError } = await supabaseClient
-                .from('reservas')
-                .select('id_mesa')
-                .eq('id', id)
-                .single();
-
-            if (fetchError || !reservaOriginal) {
-                return new Response(JSON.stringify({ success: false, status_code_real: 404, message: 'Reserva original não encontrada para cancelamento.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-            }
-            updateData.id_mesa = null;
-            updateData.id_mesa_historico = reservaOriginal.id_mesa;
+        if (ancoraError || !ancora) {
+            return new Response(JSON.stringify({ success: false, status_code_real: 404, message: 'Reserva âncora não encontrada.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
 
-        const { data: reservaAtualizada, error } = await supabaseClient
+        const { numero_reserva } = ancora;
+        let updateData: Partial<Reserva> = { status };
+
+        // Lógica especial para cancelamento
+        if (status === 'cancelada') {
+            updateData.id_mesa = null;
+            // Nota: A atualização em massa não pode mover id_mesa para id_mesa_historico individualmente.
+            // Apenas o status será atualizado em massa e id_mesa será definido como nulo.
+        }
+
+        // Atualizar todas as reservas do grupo
+        const { data: reservasAtualizadas, error } = await supabaseClient
             .from('reservas')
             .update(updateData)
-            .eq('id', id)
-            .select()
-            .single();
+            .eq('numero_reserva', numero_reserva)
+            .select();
 
         if (error) throw error;
 
+        if (!reservasAtualizadas || reservasAtualizadas.length === 0) {
+            return new Response(JSON.stringify({ success: false, status_code_real: 404, message: 'Nenhuma reserva encontrada para este grupo.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+
         const event = status === 'cancelada' ? WEBHOOK_EVENTS.RESERVA_CANCELADA : WEBHOOK_EVENTS.RESERVA_ATUALIZADA;
-        processWebhook(supabaseClient, event, reservaAtualizada);
+        processWebhook(supabaseClient, event, reservasAtualizadas);
 
         return new Response(JSON.stringify({
-            message: 'Reserva atualizada com sucesso',
-            reserva: reservaAtualizada
+            message: 'Grupo de reservas atualizado com sucesso',
+            reservas: reservasAtualizadas
         }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
