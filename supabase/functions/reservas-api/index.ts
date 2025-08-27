@@ -199,8 +199,123 @@ Deno.serve(async (req) => {
     } else if (path.startsWith('/reservas-api')) {
       path = path.replace('/reservas-api', '');
     }
+    if (!path || path === '/') path = '/status';
 
     const method = req.method;
+    console.log(`Request: ${method} ${path}`);
+
+    // GET /disponibilidade
+    if (method === 'GET' && path === '/disponibilidade') {
+      const dataReserva = url.searchParams.get('data_reserva');
+      if (!dataReserva) {
+        return new Response(JSON.stringify({
+          success: false,
+          status_code_real: 400,
+          message: 'Parâmetro data_reserva é obrigatório (YYYY-MM-DD)'
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const { data: reservasExistentes, error } = await supabaseClient
+        .from('reservas')
+        .select('id_mesa')
+        .eq('data_reserva', dataReserva)
+        .in('status', STATUS_ATIVOS);
+      if (error) throw error;
+
+      const mesasOcupadas = reservasExistentes?.map((r) => r.id_mesa) || [];
+      const totalMesasReservadas = new Set(mesasOcupadas).size;
+      const mesasDisponiveisCount = LIMITE_MESAS - totalMesasReservadas;
+      const todasMesas = Array.from({ length: 98 }, (_, i) => i + 1);
+      const mesasLivres = todasMesas.filter((mesa) => !mesasOcupadas.includes(mesa));
+
+      const response = {
+        data_consulta: dataReserva,
+        limite_mesas_por_dia: LIMITE_MESAS,
+        total_mesas_reservadas: totalMesasReservadas,
+        total_mesas_disponiveis: mesasDisponiveisCount,
+        mesas_disponiveis_lista: mesasLivres,
+        horarios_disponiveis: ['18:00', '18:30', '19:00', '19:30', '20:00']
+      };
+
+      return new Response(JSON.stringify(response), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // GET /reservas (agora mais específico)
+    if (method === 'GET' && path === '/reservas') {
+      const dataReserva = url.searchParams.get('data_reserva');
+      const numeroReserva = url.searchParams.get('numero_reserva');
+      const telefoneCliente = url.searchParams.get('telefone_cliente');
+      const clienteNome = url.searchParams.get('cliente_nome');
+      const mesa = url.searchParams.get('mesa');
+      const statusParam = url.search_params.get('status');
+
+      let query = supabaseClient.from('reservas').select('*').order('horario_reserva', { ascending: true });
+
+      if (dataReserva) query = query.eq('data_reserva', dataReserva);
+      if (numeroReserva) query = query.eq('numero_reserva', numeroReserva);
+      if (telefoneCliente) query = query.like('telefone_cliente', `%${telefoneCliente.replace(/\D/g, '')}%`);
+      if (clienteNome) query = query.ilike('nome_cliente', `%${clienteNome}%`);
+      if (mesa) query = query.eq('id_mesa', parseInt(mesa));
+
+      if (statusParam) {
+        const statusList = statusParam.split(',').map((s) => s.trim());
+        query = query.in('status', statusList);
+      } else if (!numeroReserva) {
+        query = query.in('status', STATUS_ATIVOS);
+      }
+
+      const { data: reservas, error } = await query;
+      if (error) throw error;
+
+      if (!reservas || reservas.length === 0) {
+        const isQueryingSpecificReserva = numeroReserva || telefoneCliente || clienteNome;
+        const message = isQueryingSpecificReserva
+          ? 'Nenhuma reserva encontrada com os filtros fornecidos.'
+          : 'Nenhuma reserva encontrada para a data e status atuais. Para verificar mesas livres, use o endpoint /disponibilidade?data_reserva=YYYY-MM-DD';
+
+        return new Response(JSON.stringify({
+          message: message,
+          reservas: [],
+          total: 0
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const groupedReservas = new Map<number, any>();
+
+      for (const reserva of reservas) {
+        if (!reserva.numero_reserva) continue;
+
+        if (groupedReservas.has(reserva.numero_reserva)) {
+          const existing = groupedReservas.get(reserva.numero_reserva);
+          existing.mesas.push(reserva.id_mesa);
+        } else {
+          const newGroup = {
+            ...reserva,
+            id_ancora: reserva.id,
+            mesas: [reserva.id_mesa]
+          };
+          delete newGroup.id_mesa;
+          groupedReservas.set(reserva.numero_reserva, newGroup);
+        }
+      }
+
+      const resultadoFinal = Array.from(groupedReservas.values());
+
+      return new Response(JSON.stringify({
+        reservas: resultadoFinal,
+        total: resultadoFinal.length
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     if (method === 'POST' && path === '/reservas') {
       const body = await req.json();
@@ -317,7 +432,9 @@ Deno.serve(async (req) => {
         status: 201,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
-    } else if (method === 'POST' && path === '/reservas/modificar-mesas') {
+    } 
+    
+    if (method === 'POST' && path === '/reservas/modificar-mesas') {
       const bodyText = await req.text();
       if (!bodyText) {
           return new Response(JSON.stringify({
@@ -419,7 +536,9 @@ Deno.serve(async (req) => {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
-    } else if (method === 'POST' && path === '/reservas/atualizar-status') {
+    } 
+    
+    if (method === 'POST' && path === '/reservas/atualizar-status') {
         const { id, status } = await req.json();
 
         if (!id || !status) {
@@ -462,71 +581,19 @@ Deno.serve(async (req) => {
             message: 'Reserva atualizada com sucesso',
             reserva: reservaAtualizada
         }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    } else if (req.method === 'GET') {
-      const url = new URL(req.url);
-      const dataReserva = url.searchParams.get('data_reserva');
-      const numeroReserva = url.searchParams.get('numero_reserva');
-      const telefoneCliente = url.searchParams.get('telefone_cliente');
-      const clienteNome = url.searchParams.get('cliente_nome');
-      const mesa = url.searchParams.get('mesa');
-      const statusParam = url.searchParams.get('status');
+    }
 
-      let query = supabaseClient.from('reservas').select('*').order('horario_reserva', { ascending: true });
-
-      if (dataReserva) query = query.eq('data_reserva', dataReserva);
-      if (numeroReserva) query = query.eq('numero_reserva', numeroReserva);
-      if (telefoneCliente) query = query.like('telefone_cliente', `%${telefoneCliente.replace(/\D/g, '')}%`);
-      if (clienteNome) query = query.ilike('nome_cliente', `%${clienteNome}%`);
-      if (mesa) query = query.eq('id_mesa', parseInt(mesa));
-
-      if (statusParam) {
-        const statusList = statusParam.split(',').map((s) => s.trim());
-        query = query.in('status', statusList);
-      } else if (!numeroReserva) {
-        query = query.in('status', STATUS_ATIVOS);
-      }
-
-      const { data: reservas, error } = await query;
-      if (error) throw error;
-
-      if (!reservas || reservas.length === 0) {
-        return new Response(JSON.stringify({
-          reservas: [],
-          total: 0
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      const groupedReservas = new Map<number, any>();
-
-      for (const reserva of reservas) {
-        if (!reserva.numero_reserva) continue;
-
-        if (groupedReservas.has(reserva.numero_reserva)) {
-          const existing = groupedReservas.get(reserva.numero_reserva);
-          existing.mesas.push(reserva.id_mesa);
-        } else {
-          const newGroup = {
-            ...reserva,
-            id_ancora: reserva.id,
-            mesas: [reserva.id_mesa]
-          };
-          delete newGroup.id_mesa;
-          groupedReservas.set(reserva.numero_reserva, newGroup);
-        }
-      }
-
-      const resultadoFinal = Array.from(groupedReservas.values());
-
+    // GET /status
+    if (method === 'GET' && path === '/status') {
       return new Response(JSON.stringify({
-        reservas: resultadoFinal,
-        total: resultadoFinal.length
+        status: 'online',
+        api_version: '1.3.0'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
+    // Endpoint não encontrado
     return new Response(JSON.stringify({
       success: false,
       status_code_real: 404,
