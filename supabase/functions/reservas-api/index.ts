@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
       const telefoneCliente = url.searchParams.get('telefone_cliente');
       const clienteNome = url.searchParams.get('cliente_nome');
       const mesa = url.searchParams.get('mesa');
-      const statusParam = url.search_params.get('status');
+      const statusParam = url.searchParams.get('status');
 
       let query = supabaseClient.from('reservas').select('*').order('horario_reserva', { ascending: true });
 
